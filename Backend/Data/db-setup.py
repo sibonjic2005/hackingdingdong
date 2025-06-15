@@ -1,7 +1,15 @@
 import sqlite3
 
 def init_db():
-    conn = sqlite3.connect("data/urban_mobility.db")
+    db_path = "data/urban_mobility.db"
+
+    # Create the folder if it doesn't exist
+    if not os.path.exists("data"):
+        os.makedirs("data")
+        print("[i] Created 'data' folder.")
+
+    print(f"[i] Connecting to database at: {db_path}")
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
 
     # USERS table (SysAdmin, Service Engineer)
@@ -56,6 +64,13 @@ def init_db():
             in_service_date TEXT
         )
     ''')
+    print("[✓] Database and users table created successfully.")
+
 
     conn.commit()
     conn.close()
+
+if __name__ == "__main__":
+    import os
+    init_db()
+    print("[✓] Database setup complete.")
