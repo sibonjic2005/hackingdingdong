@@ -8,19 +8,19 @@
     "net9.0": []
   },
   "packageFolders": {
-    "C:\\Users\\ammar\\.nuget\\packages\\": {}
+    "C:\\Users\\Ziyab\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\ammar\\Documents\\projectD\\hackingdingdong\\hackingdingdong.csproj",
+      "projectUniqueName": "C:\\Users\\Ziyab\\Desktop\\projectd\\hackingdingdong\\hackingdingdong.csproj",
       "projectName": "hackingdingdong",
-      "projectPath": "C:\\Users\\ammar\\Documents\\projectD\\hackingdingdong\\hackingdingdong.csproj",
-      "packagesPath": "C:\\Users\\ammar\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\ammar\\Documents\\projectD\\hackingdingdong\\obj\\",
+      "projectPath": "C:\\Users\\Ziyab\\Desktop\\projectd\\hackingdingdong\\hackingdingdong.csproj",
+      "packagesPath": "C:\\Users\\Ziyab\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Ziyab\\Desktop\\projectd\\hackingdingdong\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\ammar\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\Ziyab\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
