@@ -27,11 +27,43 @@ def validate_username(username: str) -> bool:
     return bool(re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_.'']{7,9}", username.lower()))
 
 def validate_password(password: str) -> bool:
-    # Length 12–30, at least one upper, lower, digit, special char
-    return (
-        12 <= len(password) <= 30 and
-        re.search(r"[a-z]", password) and
-        re.search(r"[A-Z]", password) and
-        re.search(r"\d", password) and
-        re.search(r"[~!@#$%&_+=`\|\(\)\{\}\[\]:;'<>,.?/-]", password)
-    )
+    if len(password) < 12 or len(password) > 30:
+        print("❌ Password must be between 12 and 30 characters.")
+        return False
+    if not re.search(r"[a-z]", password):
+        print("❌ Password must contain at least one lowercase letter.")
+        return False
+    if not re.search(r"[A-Z]", password):
+        print("❌ Password must contain at least one uppercase letter.")
+        return False
+    if not re.search(r"\d", password):
+        print("❌ Password must contain at least one digit.")
+        return False
+    if not re.search(r"[~!@#$%&_+=`\|\(\)\{\}\[\]:;'<>,.?/-]", password):
+        print("❌ Password must contain at least one special character.")
+        return False
+    return True
+def validate_serial_number(serial: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z0-9]{10,17}", serial))
+
+def validate_soc(soc: int) -> bool:
+    return 0 <= soc <= 100
+
+def validate_lat(lat: float) -> bool:
+    return 51.85 <= lat <= 52.00  # Rotterdam rough bounds
+
+def validate_long(lon: float) -> bool:
+    return 4.35 <= lon <= 4.55  # Rotterdam rough bounds
+
+def validate_iso_date(date_str: str) -> bool:
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+def validate_positive_float(val: float) -> bool:
+    return val >= 0.0
+
+def validate_positive_int(val: int) -> bool:
+    return val >= 0

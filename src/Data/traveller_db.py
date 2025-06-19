@@ -1,19 +1,16 @@
 import sqlite3
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Data.crypto import encrypt
 from Models.traveller import Traveller
+from session import get_current_user
 from datetime import datetime
-
-
-
+from config import DB_FILE
 
 def insert_traveller(traveller: Traveller):
-    
-    db_path = os.path.join(os.path.dirname(__file__), 'urban_mobility.db')
-    conn = sqlite3.connect(db_path)
-    print(f"Using database at: {db_path}")
+    """Insert a new traveller into the database."""
+    conn = sqlite3.connect(DB_FILE)
+    print(f"Using database at: {DB_FILE}")
     print("Connected to the database.")
     cursor = conn.cursor()
 
@@ -51,19 +48,4 @@ def insert_traveller(traveller: Traveller):
 
     conn.commit()
     conn.close()
-
-if __name__ == "__main__":
-    traveller = Traveller(
-    first_name="Fatima",
-    last_name="Ali",
-    birthday="2001-05-12",
-    gender="female",
-    street="Tulipstraat",
-    house_number="17",
-    zip_code="1234AB",
-    city="Rotterdam",
-    email="fatima@example.com",
-    mobile_phone="0612345678",
-    driving_license="AB1234567",
-    )
-    insert_traveller(traveller)
+    print("[✓] Traveller registered successfully.")
