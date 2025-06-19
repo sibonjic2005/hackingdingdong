@@ -1,4 +1,3 @@
-HARD_CODED_SUPER_ADMIN = {
-    "username": "super_admin",
-    "password": "Admin_123?"
-}
+# Admin credentials configuration
+ADMIN_USERNAME = "super_admin"
+ADMIN_PASSWORD = "Admin_123?"

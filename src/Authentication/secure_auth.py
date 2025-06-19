@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet
 import json
 from config import DB_FILE, LOG_FILE
 
-class UserAuth:
+class SecureAuth:
     def __init__(self):
         self.db_file = DB_FILE
         self.log_file = LOG_FILE
@@ -89,6 +89,37 @@ class UserAuth:
         """Verify password against hash"""
         return bcrypt.checkpw(password.encode(), hashed)
 
+    def login(self, username, password):
+        """Authenticate user and return success status and message"""
+        conn = None
+        cur = None
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cur = conn.cursor()
+            
+            # Get user record
+            cur.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+            result = cur.fetchone()
+            
+            if not result:
+                return False, "User not found"
+                
+            password_hash = result[0]
+            if self.verify_password(password, password_hash):
+                self._log_activity(username, "LOGIN_SUCCESS")
+                return True, "Login successful"
+            else:
+                self._log_activity(username, "LOGIN_FAILED")
+                return False, "Invalid password"
+                
+        except sqlite3.Error as e:
+            return False, f"Database error: {str(e)}"
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+    
     def register_user(self, username, password):
         """Register a new user"""
         valid, msg = self.validate_username(username)
@@ -99,9 +130,13 @@ class UserAuth:
         if not valid:
             return False, msg
 
-        conn = sqlite3.connect(self.db_file)
-        cur = conn.cursor()
+        conn = None
+        cur = None
+
         try:
+            conn = sqlite3.connect(self.db_file)
+            cur = conn.cursor()
+
             cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (username,))
             if cur.fetchone()[0] > 0:
                 return False, "Username already exists"
@@ -112,74 +147,24 @@ class UserAuth:
                 INSERT INTO users (username, password_hash, registration_date)
                 VALUES (?, ?, ?)
             """, (username, password_hash, registration_date))
+
             conn.commit()
-            
             self._log_activity(username, "REGISTER_SUCCESS")
             return True, "User registered successfully"
+
+        except sqlite3.Error as e:
+            if conn:
+                conn.rollback()
+            return False, f"Database error: {str(e)}"
+
         except Exception as e:
-            conn.rollback()
+            if conn:
+                conn.rollback()
             return False, f"Error during registration: {str(e)}"
+
         finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
             conn.close()
-
-    def login(self, username, password):
-        """Authenticate user"""
-        conn = sqlite3.connect(self.db_file)
-        cur = conn.cursor()
-        try:
-            cur.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
-            result = cur.fetchone()
-            
-            if result:
-                hashed = result[0]
-                if self.verify_password(password, hashed):
-                    self._log_activity(username, "LOGIN_SUCCESS")
-                    return True, "Login successful"
-                else:
-                    self._log_activity(username, "LOGIN_FAILED")
-                    return False, "Invalid password"
-            else:
-                self._log_activity(username, "LOGIN_FAILED")
-                return False, "User not found"
-        except Exception as e:
-            return False, f"Error during login: {str(e)}"
-        finally:
-            conn.close()
-
-    def _log_activity(self, username, action):
-        """Log user activity with encryption"""
-        log_entry = {
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'username': username,
-            'action': action
-        }
-        
-        # Initialize logs as empty list first
-        logs = []
-        
-        # Check for suspicious activity
-        try:
-            with open(self.log_file, 'rb') as f:
-                encrypted_data = f.read()
-            if encrypted_data:
-                decrypted_data = self._decrypt_log(encrypted_data)
-                logs = json.loads(decrypted_data)
-                
-                # Count failed attempts in last 10 minutes
-                now = datetime.now()
-                failed_count = sum(1 for log in logs[-10:] 
-                                if log['username'] == username and
-                                log['action'] == 'LOGIN_FAILED' and
-                                (now - datetime.fromisoformat(log['timestamp'])).total_seconds() < 600)
-                
-                if failed_count >= 5:
-                    self._log_activity(username, "SUSPICIOUS_ACTIVITY")
-        except Exception as e:
-            print(f"Error reading logs: {str(e)}")
-            logs = []
-
-        logs.append(log_entry)
-        encrypted_data = self._encrypt_log(json.dumps(logs))
-        
-        with open(self.log_file, 'wb') as f:
-            f.write(encrypted_data)
