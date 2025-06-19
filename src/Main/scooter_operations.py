@@ -1,5 +1,9 @@
+# -*- coding: utf-8 -*-
 import sqlite3
-import os, sys
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from session import get_current_user
 from Models.scooter import Scooter
 from Data.scooter_db import insert_scooter

@@ -1,7 +1,11 @@
 import os
+import sqlite3
 
 # Database configuration
 DB_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'urban_mobility.db')
+
+# Configure SQLite to use WAL mode instead of journal mode
+sqlite3.connect(DB_FILE).execute('PRAGMA journal_mode=WAL')
 
 # Log file configuration
 LOG_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'activity.log')

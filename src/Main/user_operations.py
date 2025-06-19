@@ -6,11 +6,13 @@ from Data.user_db import insert_user
 from Data.input_validation import validate_username, validate_password
 from session import get_current_user
 from config import DB_FILE
+import bcrypt
+from datetime import datetime
     
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
-def register_user_interactively():
+def register_user_interactively(role=None):
     """Interactive registration with role-based access control."""
     actor_role = get_current_user()["role"]
 
@@ -21,24 +23,25 @@ def register_user_interactively():
 
     print("=== Register New User ===")
 
-    # Choose role to create
-    print("Select user role to register:")
-    allowed_roles = []
+    # If role is not provided, show selection menu
+    if role is None:
+        print("Select user role to register:")
+        allowed_roles = []
 
-    if actor_role == "Super Administrator":
-        allowed_roles = ["System Administrator", "Service Engineer"]
-    elif actor_role == "System Administrator":
-        allowed_roles = ["Service Engineer"]
+        if actor_role == "Super Administrator":
+            allowed_roles = ["System Administrator", "Service Engineer"]
+        elif actor_role == "System Administrator":
+            allowed_roles = ["Service Engineer"]
 
-    for idx, role in enumerate(allowed_roles, start=1):
-        print(f"{idx}. {role}")
+        for i, role in enumerate(allowed_roles, 1):
+            print(f"{i}. {role}")
 
-    choice = input("Enter choice number: ").strip()
-    try:
+        choice = input("\nChoose role (1-{}): ".format(len(allowed_roles)))
+        if not choice.isdigit() or int(choice) not in range(1, len(allowed_roles) + 1):
+            print("❌ Invalid choice.")
+            return
+
         role = allowed_roles[int(choice) - 1]
-    except (IndexError, ValueError):
-        print("❌ Invalid selection.")
-        return
 
     username = input("Enter username (8–10 chars): ")
     while not validate_username(username):
@@ -52,71 +55,190 @@ def register_user_interactively():
     first = input("First name: ")
     last = input("Last name: ")
 
+    # Insert user into database
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
     
-    insert_user(username, password, role, first, last)
-    print(f"{role} account created successfully.")
+    try:
+        # Check if username already exists
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (username,))
+        if cur.fetchone()[0] > 0:
+            print("❌ Username already exists")
+            return
 
-def update_user(user_id, updates: dict):
-    """Update first name, last name or role of a user (not username or password)."""
+        # Hash the password
+        password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        
+        # Insert user
+        cur.execute("""
+            INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (username, password_hash, role, first, last, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        
+        conn.commit()
+        print(f"✅ {role} account created successfully.")
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Error creating user: {str(e)}")
+    finally:
+        conn.close()
+
+
+def update_user(user_id, updates: dict, reset_password=False):
+    """Update user information or reset password.
+    
+    Args:
+        user_id: ID of the user to update
+        updates: Dictionary of fields to update
+        reset_password: If True, will reset the user's password
+    """
     actor_role = get_current_user()["role"]
+    current_user_id = get_current_user()["user_id"]
+    
     if not is_admin_user():
-        print("You do not have permission to update users.")
+        print("❌ You do not have permission to update users.")
         return
+
+    # Get current user's role
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
+    target_role = cur.fetchone()[0]
 
     # System Admins may NOT change the role to or from System Admin
     if actor_role == "System Administrator":
         if "role" in updates and updates["role"] == "System Administrator":
-            print("System Admins cannot assign or modify System Admin roles.")
+            print("❌ System Admins cannot assign or modify System Admin roles.")
+            return
+
+    # System Admins can only modify Service Engineers, unless it's themselves
+    if actor_role == "System Administrator" and target_role != "Service Engineer":
+        if user_id != current_user_id:
+            print("❌ System Admins can only modify Service Engineers.")
             return
 
     allowed_fields = {"first_name", "last_name", "role"}
-    if not updates:
-        print("No updates provided.")
-        return
-    if not set(updates).issubset(allowed_fields):
-        print("Invalid update field(s).")
-        return
 
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cur = conn.cursor()
+        
+        # Get current user's role
+        cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
+        target_role = cur.fetchone()[0]
 
-    parts = []
-    values = []
+        # System Admins may NOT change the role to or from System Admin
+        if actor_role == "System Administrator":
+            if "role" in updates and updates["role"] == "System Administrator":
+                print("❌ System Admins cannot assign or modify System Admin roles.")
+                return
 
-    for k, v in updates.items():
-        parts.append(f"{k} = ?")
-        values.append(v)
+        # System Admins can only modify Service Engineers
+        if actor_role == "System Administrator" and target_role != "Service Engineer":
+            print("❌ System Admins can only modify Service Engineers.")
+            return
 
-    values.append(user_id)
-    cur.execute(f"UPDATE users SET {', '.join(parts)} WHERE user_id = ?", values)
-    conn.commit()
-    conn.close()
-    print("User updated.")
+        allowed_fields = {"first_name", "last_name", "role"}
+        if not updates:
+            print("❌ No updates provided.")
+            return
+        if not set(updates).issubset(allowed_fields):
+            print("❌ Invalid update field(s).")
+            return
+
+        try:
+            parts = []
+            values = []
+
+            for k, v in updates.items():
+                parts.append(f"{k} = ?")
+                values.append(v)
+
+            # If resetting password
+            if reset_password:
+                # Generate a random password
+                import random
+                import string
+                chars = string.ascii_letters + string.digits + string.punctuation
+                new_password = ''.join(random.choice(chars) for _ in range(12))
+                
+                # Hash the new password
+                password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+                
+                # Send password reset email (implement email system)
+                print(f"⚠ Password reset for user. New password: {new_password}")
+                
+                # Add password_hash to update
+                parts.append("password_hash = ?")
+                values.append(password_hash)
+
+            values.append(user_id)
+            
+            cur.execute(f"UPDATE users SET {', '.join(parts)} WHERE user_id = ?", values)
+            conn.commit()
+            print("✅ User updated successfully.")
+        except Exception as e:
+            conn.rollback()
+            print(f"❌ Error updating user: {str(e)}")
+    except sqlite3.Error as e:
+        print(f"❌ Database error: {str(e)}")
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
 
 
 def delete_user(user_id):
-    """Delete a user. Only Super Admin may delete System Admins."""
+    """Delete a user. System Admins can only delete Service Engineers."""
     actor_role = get_current_user()["role"]
+    current_user_id = get_current_user()["user_id"]
+    
     if not is_admin_user():
-        print("You do not have permission to delete users.")
+        print("❌ You do not have permission to delete users.")
         return
 
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-    cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
-    row = cur.fetchone()
-    if not row:
-        print("⚠ User not found.")
-        conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cur = conn.cursor()
+    except sqlite3.Error as e:
+        print(f"❌ Error connecting to database: {str(e)}")
         return
 
-    target_role = row[0]
-    if target_role == "System Administrator" and actor_role != "Super Administrator":
-        print("Only Super Administrator may delete a System Administrator.")
-        conn.close()
-        return
+    try:
+        # Get target user's role
+        cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            print("⚠ User not found.")
+            return
 
-    cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-    print("User deleted.")
+        target_role = row[0]
+        
+        # Super Admin can delete any user
+        if actor_role == "Super Administrator":
+            cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+        # System Admin can only delete Service Engineers
+        elif actor_role == "System Administrator":
+            if target_role == "Service Engineer":
+                cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+            else:
+                print("❌ System Admins can only delete Service Engineers.")
+                return
+        # System Admin can delete themselves
+        elif actor_role == "System Administrator" and user_id == current_user_id:
+            cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+        else:
+            print("❌ You do not have permission to delete this user.")
+            return
+
+        conn.commit()
+        print("✅ User deleted successfully.")
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"❌ Error deleting user: {str(e)}")
+    finally:
+        try:
+            conn.close()
+        except:
+            pass

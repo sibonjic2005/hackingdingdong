@@ -22,7 +22,7 @@ def insert_traveller(traveller: Traveller):
             last_name TEXT,
             birthday TEXT,
             gender TEXT,
-            street TEXT,
+            street_name TEXT,
             house_number TEXT,
             zip_code TEXT,
             city TEXT,
@@ -36,14 +36,17 @@ def insert_traveller(traveller: Traveller):
 
 
     data = traveller.as_dict()
-    encrypted_fields = ["street", "zip_code", "email", "mobile_phone"]
+    encrypted_fields = ["street_name", "zip_code", "email", "mobile_phone"]
 
     for field in encrypted_fields:
         data[field] = encrypt(data[field])
 
     values = tuple(data.values())
     cursor.execute('''
-        INSERT INTO travellers VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO travellers (traveller_id, first_name, last_name, birthday, gender, 
+                              street_name, house_number, zip_code, city, email, 
+                              mobile_phone, driving_license, registration_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', values)
 
     conn.commit()

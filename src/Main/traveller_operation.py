@@ -25,7 +25,7 @@ def create_traveller_from_input():
     while not validate_gender(gender):
         gender = input("Invalid gender. Enter 'male' or 'female': ")
 
-    street = input("Street: ")
+    street_name = input("Street: ")
     house_number = input("House number: ")
     zip_code = input("ZIP code (e.g. 1234AB): ")
     while not validate_zip(zip_code):
@@ -41,7 +41,7 @@ def create_traveller_from_input():
     while not validate_driving_license(driving_license):
         driving_license = input("Invalid license. Try again: ")
 
-    traveller = Traveller(first_name, last_name, birthday, gender, street,
+    traveller = Traveller(first_name, last_name, birthday, gender, street_name,
                           house_number, zip_code, city, email,
                           mobile_phone, driving_license)
 

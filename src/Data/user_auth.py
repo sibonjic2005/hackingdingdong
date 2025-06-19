@@ -13,6 +13,38 @@ class UserAuth:
         self._ensure_database()
         self._ensure_log_file()
         self._load_key()
+        self._create_admin_user_if_not_exists()
+
+    def _create_admin_user_if_not_exists(self):
+        """Create admin user if it doesn't exist"""
+        conn = sqlite3.connect(self.db_file)
+        cur = conn.cursor()
+        
+        # Check if admin user exists
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", ("super_admin",))
+        if cur.fetchone()[0] == 0:
+            # Admin user details
+            username = "super_admin"
+            password = "Admin_123?"
+            role = "Super Administrator"
+            first_name = "System"
+            last_name = "Administrator"
+            registration_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Hash the password
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            
+            # Insert admin user
+            cur.execute("""
+                INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (username, password_hash, role, first_name, last_name, registration_date))
+            conn.commit()
+            print("✅ Admin user created successfully")
+        else:
+            print("ℹ️ Admin user already exists")
+        
+        conn.close()
 
     def _ensure_database(self):
         """Create database and users table if they don't exist"""
@@ -23,6 +55,9 @@ class UserAuth:
                 id INTEGER PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
+                role TEXT NOT NULL,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
                 registration_date TEXT NOT NULL
             )
         ''')
