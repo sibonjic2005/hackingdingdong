@@ -1,3 +1,7 @@
 import os
 
-DB_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "Data", "urban_mobility.db"))
+# Database configuration
+DB_FILE = 'data/urban_mobility.db'
+
+# Log file configuration
+LOG_FILE = 'data/activity.log'

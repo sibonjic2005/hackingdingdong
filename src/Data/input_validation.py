@@ -5,7 +5,7 @@ def validate_zip(zip_code: str) -> bool:
     return bool(re.fullmatch(r"\d{4}[A-Z]{2}", zip_code))
 
 def validate_mobile(mobile: str) -> bool:
-    return bool(re.fullmatch(r"\d{8}", mobile))  # Only 8 digits entered by user
+    return bool(re.fullmatch(r"\d{10}", mobile))  # Only 8 digits entered by user
 
 def validate_driving_license(license_num: str) -> bool:
     return bool(re.fullmatch(r"([A-Z]{2}\d{7}|[A-Z]{1}\d{7})", license_num))
@@ -50,10 +50,10 @@ def validate_soc(soc: int) -> bool:
     return 0 <= soc <= 100
 
 def validate_lat(lat: float) -> bool:
-    return 51.85 <= lat <= 52.00  # Rotterdam rough bounds
+    return 51,85 <= lat <= 52,00  # Rotterdam rough bounds
 
 def validate_long(lon: float) -> bool:
-    return 4.35 <= lon <= 4.55  # Rotterdam rough bounds
+    return 4,35 <= lon <= 4,55  # Rotterdam rough bounds
 
 def validate_iso_date(date_str: str) -> bool:
     try:
@@ -63,7 +63,7 @@ def validate_iso_date(date_str: str) -> bool:
         return False
 
 def validate_positive_float(val: float) -> bool:
-    return val >= 0.0
+    return val >= 0,0
 
 def validate_positive_int(val: int) -> bool:
     return val >= 0
