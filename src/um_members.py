@@ -646,36 +646,57 @@ def scooter_menu():
 
 def system_management_menu():
     """Menu for system management tasks."""
-    print("\n=== System Management ===")
-    print("1. View logs (TBD)")
-    print("2. Create backup")
-    print("3. Generate restore code")
-    print("4. Revoke restore code")
-    print("\n0. Back")
-    
-    choice = input("\nChoose an option: ").strip()
-    if choice == "1":
-        view_system_logs(49)
-        print("🛠 Logs view (TBD)")
-    elif choice == "2":
-            # Create and encrypt backup
-            if get_current_user()['role'] in ['Super Administrator', 'System Administrator']:
-                backup_path = create_system_backup()
-                if backup_path:
-                    print(f"Backup successfully created at: {backup_path}")
-            else:
-                print("❌ Only administrators can create backups")
-            input("\nPress Enter to continue...")
-    elif choice == "3":
-        generate_restore_code()
-        print("🛠 Generate restore code")
-    elif choice == "4":
-        revoke_restore_code()
-        print("🛠 Revoke restore code")
-    elif choice != "0":
+    while True:  # Keep showing menu until user chooses to go back
+        print("\n=== System Management ===")
+        print("1. View logs")
+        print("2. Create backup")
+        print("3. Generate restore code")
+        print("4. Revoke restore code")
+        print("\n0. Back")
         
-        print("Invalid choice")
-    return True
+        choice = input("\nChoose an option: ").strip()
+        
+        if choice == "1":
+            view_system_logs(50)  # Show last 50 logs
+            input("\nPress Enter to continue...")
+            
+        elif choice == "2":
+            current_user = get_current_user()
+            if current_user and current_user['role'] in ['Super Administrator', 'System Administrator']:
+                result = create_system_backup()
+                if result and result.get('success'):
+                    print(f"\n✅ Backup successfully created at: {result['filename']}")
+                else:
+                    print(f"\n❌ Backup failed: {result.get('error', 'Unknown error')}")
+            else:
+                print("\n❌ Only administrators can create backups")
+            input("\nPress Enter to continue...")
+            
+        elif choice == "3":
+            current_user = get_current_user()
+            if current_user and current_user['role'] == 'Super Administrator':
+                code = generate_restore_code()
+                if not code:
+                    print("\n❌ Failed to generate restore code")
+            else:
+                print("\n❌ Only Super Administrators can generate restore codes")
+            input("\nPress Enter to continue...")
+            
+        elif choice == "4":
+            current_user = get_current_user()
+            if current_user and current_user['role'] == 'Super Administrator':
+                if not revoke_restore_code():
+                    print("\n❌ Failed to revoke restore code")
+            else:
+                print("\n❌ Only Super Administrators can revoke restore codes")
+            input("\nPress Enter to continue...")
+            
+        elif choice == "0":
+            return True  # Return to previous menu
+            
+        else:
+            print("\n❌ Invalid choice")
+            input("Press Enter to continue...")
 
     choice = input("\nChoose an option: ").strip()
 

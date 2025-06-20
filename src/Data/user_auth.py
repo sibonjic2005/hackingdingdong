@@ -46,10 +46,12 @@ class UserAuth:
         
         conn.close()
 
-    def _ensure_database(self):
-        """Create database and users table if they don't exist"""
+        def _ensure_database(self):
+            """Create database and tables if they don't exist"""
         conn = sqlite3.connect(self.db_file)
         cur = conn.cursor()
+        
+        # Users table
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
@@ -61,6 +63,19 @@ class UserAuth:
                 registration_date TEXT NOT NULL
             )
         ''')
+        
+        # Logs table
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                username TEXT NOT NULL,
+                action TEXT NOT NULL,
+                details TEXT,
+                FOREIGN KEY(username) REFERENCES users(username)
+            )
+        ''')
+        
         conn.commit()
         conn.close()
 
@@ -181,40 +196,48 @@ class UserAuth:
         finally:
             conn.close()
 
-    def log_activity(self, username, action):
-        """Log user activity with encryption"""
-        log_entry = {
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'username': username,
-            'action': action
-        }
-        
-        # Initialize logs as empty list first
-        logs = []
-        
-        # Check for suspicious activity
-        try:
-            with open(self.log_file, 'rb') as f:
-                encrypted_data = f.read()
-            if encrypted_data:
-                decrypted_data = self._decrypt_log(encrypted_data)
-                logs = json.loads(decrypted_data)
-                
-                # Count failed attempts in last 10 minutes
-                now = datetime.now()
-                failed_count = sum(1 for log in logs[-10:] 
-                                if log['username'] == username and
-                                log['action'] == 'LOGIN_FAILED' and
-                                (now - datetime.fromisoformat(log['timestamp'])).total_seconds() < 600)
-                
-                if failed_count >= 5:
-                    self.log_activity(username, "SUSPICIOUS_ACTIVITY")
-        except Exception as e:
-            print(f"Error reading logs: {str(e)}")
-            logs = []
+    def log_activity(self, username, action, details=None):
+        """Log user activity to both encrypted file and database"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 1. Log to encrypted file (existing functionality)
+    log_entry = {
+        'timestamp': timestamp,
+        'username': username,
+        'action': action,
+        'details': details
+    }
+    
+    logs = []
+    try:
+        with open(self.log_file, 'rb') as f:
+            encrypted_data = f.read()
+        if encrypted_data:
+            decrypted_data = self._decrypt_log(encrypted_data)
+            logs = json.loads(decrypted_data)
+    except Exception as e:
+        print(f"Error reading logs: {str(e)}")
 
-        logs.append(log_entry)
-        encrypted_data = self._encrypt_log(json.dumps(logs))
-        
-        with open(self.log_file, 'wb') as f:
-            f.write(encrypted_data)
+    logs.append(log_entry)
+    encrypted_data = self._encrypt_log(json.dumps(logs))
+    
+    with open(self.log_file, 'wb') as f:
+        f.write(encrypted_data)
+
+    # 2. Log to database table (new functionality)
+    conn = None
+    try:
+        conn = sqlite3.connect(self.db_file)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO activity_logs (timestamp, username, action, details)
+            VALUES (?, ?, ?, ?)
+        """, (timestamp, username, action, details))
+        conn.commit()
+    except Exception as e:
+        print(f"Error writing to database log: {str(e)}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()

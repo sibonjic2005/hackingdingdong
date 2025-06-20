@@ -7,13 +7,14 @@ DB_PATH = "data/urban_mobility.db"
 
 def revoke_restore_code():
     """Revoke an existing restore code"""
+    conn = None
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Get current user
         current_user = get_current_user()
-        if not current_user or current_user['role'] != 'Super Administrator':
+        if not current_user or current_user.get('role') != 'Super Administrator':
             print("\n❌ Only Super Administrators can revoke restore codes")
             return False
 
@@ -41,9 +42,14 @@ def revoke_restore_code():
             print(f"{code[0]:<5} | {code[1]:<18} | {code[2][:25]:<25} | {code[4]}")
 
         # Select code to revoke
-        code_id = input("\nEnter Code ID to revoke (0 to cancel): ").strip()
-        if code_id == "0":
-            return False
+        while True:
+            code_id = input("\nEnter Code ID to revoke (0 to cancel): ").strip()
+            if code_id == "0":
+                return False
+            if not code_id.isdigit():
+                print("❌ Please enter a valid number")
+                continue
+            break
 
         # Verify code exists and is revocable
         cursor.execute("""
@@ -67,9 +73,9 @@ def revoke_restore_code():
         conn.commit()
 
         # Log the action
-        log_activity(
+        user_auth.log_activity(
             current_user['username'],
-            "Revoked restore code",
+            "RESTORE_CODE_REVOKED",
             f"Code ID: {code_id}"
         )
 
@@ -83,29 +89,5 @@ def revoke_restore_code():
         print(f"\n❌ Error revoking code: {str(e)}")
         return False
     finally:
-        conn.close() if 'conn' in locals() else None
-
-def revoke_all_expired_codes():
-    """Automatically revoke all expired restore codes"""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            UPDATE restore_codes
-            SET is_used = 1
-            WHERE is_used = 0
-            AND datetime(expires_at) <= datetime('now')
-        """)
-        
-        count = cursor.rowcount
-        conn.commit()
-        
-        if count > 0:
-            print(f"\nAutomatically revoked {count} expired restore codes")
-        
-        return count
-    except sqlite3.Error:
-        return 0
-    finally:
-        conn.close() if 'conn' in locals() else None
+        if conn:
+            conn.close()
