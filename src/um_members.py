@@ -3,13 +3,13 @@ from Authentication.secure_auth import SecureAuth
 from session import set_current_user, get_current_user, clear_current_user
 from Main.user_operations import *
 from Main.scooter_operations import *
-from Main.traveller_operation import create_traveller_from_input
-from Data.user_auth import UserAuth
+from Main.traveller_operation import *
+from Data.user_auth import *
 
 # Initialize authentication
 auth = SecureAuth()
 
-from Authentication.auth import SUPER_ADMIN_USERNAME, SUPER_ADMIN_PASSWORD, SUPER_ADMIN_USER, verify_admin_credentials
+from Authentication.auth import *
 
 def login():
     print("=== Login ===")
@@ -73,7 +73,7 @@ def main_menu():
         print("4. System Management")
         print("\n0. Exit")
     elif role == "System Administrator":
-        print("\n1. Service Engineers")
+        print("\n1. Manage Service Engineers")
         print("2. Travellers")
         print("3. Scooters")
         print("4. System Management")
@@ -158,13 +158,13 @@ def service_engineer_management_menu():
     choice = input("\nChoose an option: ").strip()
     if choice == "1":
         print("🔍 Creating new Service Engineer...")
-        register_user_interactively("Service Engineer")
+        register_user_interactively()
     elif choice == "2":
         print("🔍 Updating Service Engineer...")
-        update_user_interactively("Service Engineer")
+        update_user()   
     elif choice == "3":
         print("🔍 Deleting Service Engineer...")
-        delete_user_interactively("Service Engineer")
+        delete_user()
     elif choice == "4":
         print("🔍 Resetting Service Engineer password...")
         reset_service_engineer_password()
@@ -470,7 +470,7 @@ def service_engineer_account_menu():
     choice = input("\nChoose an option: ").strip()
     if choice == "1":
         print("🔍 Changing password...")
-        return change_password_interactively()
+        return reset_service_engineer_password()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -526,10 +526,10 @@ def create_admin_interactively():
     choice = input("\nChoose administrator type: ").strip()
     if choice == "1":
         print("🔍 Creating new System Administrator...")
-        register_user_interactively("System Administrator")
+        register_user_interactively()
     elif choice == "2":
         print("🔍 Creating new Service Engineer...")
-        register_user_interactively("Service Engineer")
+        register_user_interactively()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -544,10 +544,10 @@ def update_admin_interactively():
     choice = input("\nChoose administrator type: ").strip()
     if choice == "1":
         print("🔍 Updating System Administrator...")
-        update_user_interactively("System Administrator")
+        update_user()
     elif choice == "2":
         print("🔍 Updating Service Engineer...")
-        update_user_interactively("Service Engineer")
+        update_user()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -562,10 +562,10 @@ def delete_admin_interactively():
     choice = input("\nChoose administrator type: ").strip()
     if choice == "1":
         print("🔍 Deleting System Administrator...")
-        delete_user_interactively("System Administrator")
+        delete_user()
     elif choice == "2":
         print("🔍 Deleting Service Engineer...")
-        delete_user_interactively("Service Engineer")
+        delete_user()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -584,10 +584,10 @@ def service_engineer_menu():
         register_user_interactively()
     elif choice == "2":
         print("🔍 Updating Service Engineer...")
-        update_user_interactively("Service Engineer")
+        update_user()
     elif choice == "3":
         print("🔍 Deleting Service Engineer...")
-        delete_user_interactively("Service Engineer")
+        delete_user()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -605,10 +605,10 @@ def traveller_menu():
         create_traveller_from_input()
     elif choice == "2":
         print("🔍 Updating traveller...")
-        update_traveller_interactively()
+        update_traveller_record()
     elif choice == "3":
         print("🔍 Deleting traveller...")
-        delete_traveller_interactively()
+        remove_traveller()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -631,10 +631,10 @@ def scooter_menu():
         create_scooter_from_input()
     elif choice == "3":
         print("🔍 Updating scooter...")
-        update_scooter_interactively()
+        update_scooter()
     elif choice == "4":
         print("🔍 Deleting scooter...")
-        delete_scooter_interactively()
+        remove_traveller()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -661,135 +661,6 @@ def system_management_menu():
         print("Invalid choice")
     return True
 
-    choice = input("\nChoose an option: ").strip()
-
-    if role == "Super Administrator":
-        if choice == "1":
-            print("🔍 Creating new System Admin...")
-        elif choice == "2":
-            print("🔍 Updating System Admin...")
-        elif choice == "3":
-            print("🔍 Deleting System Admin...")
-        elif choice == "4":
-            print("🔍 Creating new Service Engineer...")
-        elif choice == "5":
-            print("🔍 Updating Service Engineer...")
-        elif choice == "6":
-            print("🔍 Deleting Service Engineer...")
-        elif choice == "7":
-            create_traveller_from_input()
-        elif choice == "8":
-            print("🔍 Updating traveller...")
-        elif choice == "9":
-            print("🔍 Deleting traveller...")
-        elif choice == "10":
-            print("🔍 Creating new scooter...")
-        elif choice == "11":
-            print("🔍 Updating scooter...")
-        elif choice == "12":
-            print("🔍 Deleting scooter...")
-        elif choice == "13":
-            print("🛠 Logs view (TBD)")
-        elif choice == "14":
-            print("🛠 Create backup")
-        elif choice == "15":
-            print("🛠 Generate restore code")
-        elif choice == "16":
-            print("🛠 Revoke restore code")
-        elif choice == "0":
-            clear_current_user()
-            print("🔒 Logged out.")
-            return
-        else:
-            print("Invalid choice or access denied.")
-            input("\nPress Enter to continue...")
-    elif role == "System Administrator":
-        if choice == "1":
-            print("🔍 Creating new Service Engineer...")
-        elif choice == "2":
-            print("🔍 Updating Service Engineer...")
-        elif choice == "3":
-            print("🔍 Deleting Service Engineer...")
-        elif choice == "4":
-            create_traveller_from_input()
-        elif choice == "5":
-            print("🔍 Updating traveller...")
-        elif choice == "6":
-            print("🔍 Deleting traveller...")
-        elif choice == "7":
-            print("🔍 Creating new scooter...")
-        elif choice == "8":
-            print("🔍 Updating scooter...")
-        elif choice == "9":
-            print("🔍 Deleting scooter...")
-        elif choice == "10":
-            print("🔒 Change password")
-        elif choice == "0":
-            clear_current_user()
-            print("🔒 Logged out.")
-            return
-        else:
-            print("Invalid choice or access denied.")
-            input("\nPress Enter to continue...")
-    elif role == "Service Engineer":
-        if choice == "1":
-            print("🔍 Searching scooters...")
-            search_scooters()
-        elif choice == "2":
-            print("🔍 Updating scooter information...")
-            update_scooter_info()
-        elif choice == "3":
-            print("🔒 Change password")
-            change_password_interactively()
-        elif choice == "0":
-            clear_current_user()
-            print("🔒 Logged out.")
-            return
-        else:
-            print("Invalid choice or access denied.")
-            input("\nPress Enter to continue...")
-
-def manage_scooters():
-    while True:
-        print("\n--- Scooter Management ---")
-        print("Available options:")
-        print("1. View Scooters")
-        print("2. Add New Scooter")
-        print("3. Delete Scooter")
-        print("0. Back")
-        
-        choice = input("\nChoose an option: ").strip()
-        
-        if choice == "1":
-            view_scooters()
-        elif choice == "2":
-            create_scooter_from_input()
-        elif choice == "3":
-            delete_scooter()
-        elif choice == "0":
-            break
-        else:
-            print("Invalid choice.")
-            input("\nPress Enter to continue...")
-
-def manage_users():
-    role = get_current_user()["role"]
-    options = ["View Users", "Register New User", "Delete User", "Back"]
-    functions = [view_users, register_user_interactively, delete_user, lambda: None]
-    
-    # Super Administrator can manage all users
-    if role == "Super Administrator":
-        options = ["View Users", "Register New User", "Update User", "Delete User", "Back"]
-        functions = [view_users, register_user_interactively, update_user, delete_user, lambda: None]
-    
-    menu = Menu("User Management", options, functions)
-    
-    while True:
-        choice = menu.run()
-        if choice == -1 or choice == len(options) - 1:  # Escape or Back
-            break
-        else:
-            input("\nPress Enter to continue...")
 
 def delete_scooter():
     print("🔍 Searching for scooter to delete...")
