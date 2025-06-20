@@ -1,7 +1,7 @@
 
 from Main.menu import *
 from session import *
-from Data.user_auth import UserAuth
+from Authentication.secure_auth import SecureAuth
 
 
 def login_interface():
@@ -19,9 +19,8 @@ def login_interface():
         print(f"❌ {message}")
         return False
 
-# Add registration function
 def register():
-    auth = UserAuth()
+    auth = SecureAuth()
     
     print("=== Register New User ===")
     username = input("Username: ").strip()
@@ -37,6 +36,5 @@ def register():
         return False
     
 if __name__ == "__main__":
-    # Start login process
     if login_interface():
         main_menu()

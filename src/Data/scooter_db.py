@@ -1,8 +1,6 @@
 import sqlite3
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Data.crypto import encrypt
-from datetime import datetime
 from Models.scooter import Scooter
 from config import DB_FILE
 
@@ -10,10 +8,9 @@ def insert_scooter(scooter: Scooter):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # Ensure table exists
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS scooters (
-            scooter_id TEXT PRIMARY KEY,
+            scooter_id INTEGER PRIMARY KEY AUTOINCREMENT,
             brand TEXT,
             model TEXT,
             serial_number TEXT UNIQUE,
@@ -22,8 +19,8 @@ def insert_scooter(scooter: Scooter):
             state_of_charge INTEGER,
             target_soc_min INTEGER,
             target_soc_max INTEGER,
-            latitude REAL,
-            longitude REAL,
+            location_lat REAL,
+            location_long REAL,
             out_of_service INTEGER,
             mileage REAL,
             last_maintenance_date TEXT,
@@ -31,13 +28,13 @@ def insert_scooter(scooter: Scooter):
         )
     ''')
 
-    # Prepare data
     data = scooter.as_dict()
+    columns = ", ".join(data.keys())
+    placeholders = ", ".join(["?"] * len(data))
     values = tuple(data.values())
 
-    # Insert into table
-    cursor.execute('''
-        INSERT INTO scooters VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    cursor.execute(f'''
+        INSERT INTO scooters ({columns}) VALUES ({placeholders})
     ''', values)
 
     conn.commit()

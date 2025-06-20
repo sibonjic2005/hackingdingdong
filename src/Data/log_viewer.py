@@ -1,4 +1,3 @@
-# src/Data/log_viewer.py
 import sqlite3
 from datetime import datetime
 from Data.crypto import decrypt

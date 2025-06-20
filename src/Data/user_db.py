@@ -1,5 +1,6 @@
 import sqlite3
-import os, sys
+import os
+import sys
 from datetime import datetime
 from Data.crypto import encrypt
 from session import get_current_user
@@ -10,18 +11,16 @@ def hash_password(password: str) -> str:
     """Hash the password using SHA-256 (or use bcrypt in main auth layer)."""
     return hashlib.sha256(password.encode()).hexdigest()
 
-
 def insert_user(username, password, role, first_name, last_name):
     """Insert a new System Admin or Service Engineer into the users table."""
 
     if role not in ["System Administrator", "Service Engineer"]:
         print("Invalid role.")
-        return
+        return False, "Invalid role"
 
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
 
- 
     cur.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +44,12 @@ def insert_user(username, password, role, first_name, last_name):
         ''', (enc_username, hashed_pw, role, first_name, last_name, reg_date))
         conn.commit()
         print(f"[✓] {role} account created successfully.")
+        return True, f"{role} account created successfully."
     except sqlite3.IntegrityError:
         print("[!] Username already exists.")
+        return False, "Username already exists."
+    except Exception as e:
+        print(f"[!] Error: {str(e)}")
+        return False, f"Error: {str(e)}"
     finally:
         conn.close()

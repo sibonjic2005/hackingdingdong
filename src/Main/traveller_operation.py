@@ -1,5 +1,4 @@
 import sqlite3
-import os, sys
 from Data.crypto import decrypt, encrypt
 from session import get_current_user
 from Models.traveller import Traveller
@@ -15,6 +14,7 @@ def create_traveller_from_input():
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
         return
+
     first_name = input("First name: ")
     last_name = input("Last name: ")
     birthday = input("Birthday (YYYY-MM-DD): ")
@@ -33,9 +33,9 @@ def create_traveller_from_input():
 
     city = input("City: ")
     email = input("Email: ")
-    mobile_phone = input("Mobile (start with 06, 10 digits total): ")
-    while not validate_mobile(mobile_phone):
-        mobile_phone = input("Invalid mobile. Try again: ")
+    mobile = input("Mobile (start with 06, 10 digits total): ")
+    while not validate_mobile(mobile):
+        mobile = input("Invalid mobile. Try again: ")
 
     driving_license = input("Driving license (X/DDDDDDD or XXDDDDDDD): ")
     while not validate_driving_license(driving_license):
@@ -43,16 +43,16 @@ def create_traveller_from_input():
 
     traveller = Traveller(first_name, last_name, birthday, gender, street_name,
                           house_number, zip_code, city, email,
-                          mobile_phone, driving_license)
+                          mobile, driving_license)
 
     insert_traveller(traveller)
-    print("Traveller registered successfully!")
 
 def search_travellers():
     """Search for travellers using partial matches on specified field."""
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
         return
+
     fields = ["first_name", "last_name", "traveller_id"]
     print("Search travellers by:")
     for i, f in enumerate(fields, start=1):
@@ -80,16 +80,14 @@ def search_travellers():
     decrypted = []
     for row in rows:
         row = list(row)
-        # Decrypt sensitive fields
-        row[5] = decrypt(row[5])     # street
-        row[7] = decrypt(row[7])     # zip code
-        row[9] = decrypt(row[9])     # email
-        row[10] = decrypt(row[10])   # mobile phone
+        row[5] = decrypt(row[5])
+        row[7] = decrypt(row[7])
+        row[9] = decrypt(row[9])
+        row[10] = decrypt(row[10])
         print(row)
         decrypted.append(row)
 
     return decrypted
-
 
 def update_traveller_record():
     """Interactively update editable fields for a traveller."""
@@ -105,12 +103,12 @@ def update_traveller_record():
     editable_fields = {
         "1": "first_name",
         "2": "last_name",
-        "3": "street",
+        "3": "street_name",
         "4": "house_number",
         "5": "zip_code",
         "6": "city",
         "7": "email",
-        "8": "mobile_phone"
+        "8": "mobile"
     }
 
     print("\nChoose fields to update (one at a time):")
@@ -130,22 +128,23 @@ def update_traveller_record():
         field = editable_fields[choice]
         new_value = input(f"Enter new value for {field}: ").strip()
 
-        # Validation and encryption where needed
+        # Validation
         if field == "zip_code" and not validate_zip(new_value):
             print("❌ Invalid ZIP code.")
             continue
         if field == "email" and not validate_email(new_value):
             print("❌ Invalid email address.")
             continue
-        if field == "mobile_phone" and not validate_mobile(new_value):
+        if field == "mobile" and not validate_mobile(new_value):
             print("❌ Invalid mobile number.")
             continue
         if field == "house_number":
             if not new_value.isdigit():
                 print("❌ House number must be numeric.")
                 continue
-            new_value = int(new_value)
-        if field in ["street", "zip_code", "email", "mobile_phone"]:
+            new_value = str(new_value)
+
+        if field in ["street_name", "zip_code", "email", "mobile"]:
             new_value = encrypt(new_value)
 
         update_data[field] = new_value
@@ -154,7 +153,6 @@ def update_traveller_record():
         print("⚠ No updates made.")
         return
 
-    
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
 
@@ -167,8 +165,6 @@ def update_traveller_record():
 
     print("✅ Traveller record updated successfully.")
 
-
-
 def remove_traveller(traveller_id):
     """Delete a traveller by their unique ID."""
     if not is_admin_user():
@@ -179,4 +175,4 @@ def remove_traveller(traveller_id):
     cur.execute("DELETE FROM travellers WHERE traveller_id = ?", (traveller_id,))
     conn.commit()
     conn.close()
-    print("Traveller record deleted.")
+    print("🗑️ Traveller record deleted.")

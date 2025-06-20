@@ -159,7 +159,7 @@ def service_engineer_scooter_menu():
         view_scooter_details()
     elif choice == "3":
         print("🔍 Updating scooter information...")
-        update_scooter_information()
+        update_scooter_via_cli()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -239,10 +239,14 @@ def scooter_menu():
         create_scooter_from_input()
     elif choice == "3":
         print("🔍 Updating scooter...")
-        update_scooter()
+        update_scooter_via_cli()
     elif choice == "4":
         print("🔍 Deleting scooter...")
-        remove_traveller()
+        scooter_id = input("Enter scooter ID to delete: ").strip()
+        if scooter_id:
+            delete_scooter(scooter_id)
+        else:
+            print("❌ No scooter ID provided.")
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -261,14 +265,14 @@ def system_management_menu():
         view_system_logs(49)
         print("🛠 Logs view (TBD)")
     elif choice == "2":
-            # Create and encrypt backup
-            if get_current_user()['role'] in ['Super Administrator', 'System Administrator']:
-                backup_path = create_system_backup()
-                if backup_path:
-                    print(f"Backup successfully created at: {backup_path}")
-            else:
-                print("❌ Only administrators can create backups")
-            input("\nPress Enter to continue...")
+        # Create and encrypt backup
+        if get_current_user()['role'] in ['Super Administrator', 'System Administrator']:
+            backup_path = create_system_backup()
+            if backup_path:
+                print(f"Backup successfully created at: {backup_path}")
+        else:
+            print("❌ Only administrators can create backups")
+        input("\nPress Enter to continue...")
     elif choice == "3":
         generate_restore_code()
         print("🛠 Generate restore code")
@@ -276,7 +280,5 @@ def system_management_menu():
         revoke_restore_code()
         print("🛠 Revoke restore code")
     elif choice != "0":
-        
         print("Invalid choice")
     return True
-

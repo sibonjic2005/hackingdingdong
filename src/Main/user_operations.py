@@ -18,14 +18,12 @@ def register_user_interactively():
     """Interactive registration with role-based access control."""
     actor_role = get_current_user()["role"]
 
-    # Check if the user has permission to register new users
     if not is_admin_user():
         print("❌ You do not have permission to register users.")
         return
 
     print("=== Register New User ===")
 
-    # If role is not provided, show selection menu
     
     print("Select user role to register:")
     allowed_roles = []
@@ -59,6 +57,8 @@ def register_user_interactively():
     success, message = insert_user(username, password, role, first, last)
     if success:
         print(f"✅ {role} account created.")
+        from Main.menu import main_menu
+        main_menu()
     else:
         print(f"❌ {message}")
 
@@ -85,8 +85,7 @@ def update_current_user_profile():
     current_user = get_current_user()
     print("\n=== Update Profile ===")
     print(f"Current profile for {current_user['username']}")
-    
-    # Get current user's data
+
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT username, first_name, last_name, email FROM users WHERE user_id = ?", 
@@ -97,20 +96,17 @@ def update_current_user_profile():
         print("❌ User not found.")
         return False
     
-    # Show current data
     print("\nCurrent information:")
     print(f"Username: {user_data[0]}")
     print(f"First name: {user_data[1]}")
     print(f"Last name: {user_data[2]}")
     print(f"Email: {user_data[3]}")
     
-    # Get updates
     print("\nLeave fields empty to keep current values")
     new_first = input("New first name: ").strip() or user_data[1]
     new_last = input("New last name: ").strip() or user_data[2]
     new_email = input("New email: ").strip() or user_data[3]
     
-    # Update database
     cur.execute("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE user_id = ?",
                (new_first, new_last, new_email, current_user['user_id']))
     conn.commit()
@@ -133,7 +129,6 @@ def delete_current_user():
     cur = conn.cursor()
     
     try:
-        # Delete user
         cur.execute("DELETE FROM users WHERE user_id = ?", (current_user['user_id'],))
         conn.commit()
         print("✅ Account deleted successfully.")
@@ -166,7 +161,6 @@ def update_user():
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
 
-    # Get target user's role
     cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
     row = cur.fetchone()
     if not row:
@@ -174,7 +168,6 @@ def update_user():
         return
     target_role = row[0]
 
-    # Enforce role rules
     if actor_role == "System Administrator":
         if target_role == "System Administrator" and user_id != current_user_id:
             print("❌ You cannot modify other System Administrators.")
@@ -204,7 +197,6 @@ def update_user():
         field = editable_fields[field_choice]
         new_value = input(f"Enter new value for {field}: ").strip()
 
-        # Validate role change
         if field == "role":
             if actor_role == "System Administrator" and new_value == "System Administrator" and user_id != current_user_id:
                 print("❌ You cannot assign or change System Administrator roles.")
@@ -272,7 +264,6 @@ def delete_user():
 
         target_role = row[0]
 
-        # Deletion logic based on roles
         if actor_role == "Super Administrator":
             cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
         elif actor_role == "System Administrator":

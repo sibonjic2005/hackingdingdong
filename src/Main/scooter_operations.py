@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import sqlite3
 import os
 import sys
@@ -11,17 +10,17 @@ from Data.input_validation import *
 from Data.user_db import get_current_user
 from config import DB_FILE
 
-# Fields editable by Service Engineers
 ENGINEER_ALLOWED_FIELDS = {
     "state_of_charge",
     "target_soc_min",
     "target_soc_max",
-    "latitude",
-    "longitude",
+    "location_lat",
+    "location_long",
     "out_of_service",
     "mileage",
     "last_maintenance_date"
 }
+
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
@@ -117,8 +116,8 @@ def create_scooter_from_input():
         state_of_charge=soc,
         target_soc_min=soc_min,
         target_soc_max=soc_max,
-        latitude=lat,
-        longitude=lon,
+        location_lat=lat,
+        location_long=lon,
         out_of_service=out,
         mileage=km,
         last_maintenance_date=last_service
@@ -188,7 +187,7 @@ def search_scooters():
     finally:
         conn.close()
 
-def update_scooter(scooter_id, updates):
+def update_scooter_information(scooter_id, updates):
     """Update a scooter, with field-level restrictions based on user role."""
     actor_role = get_current_user()["role"]
     if not updates:
@@ -220,9 +219,9 @@ def update_scooter(scooter_id, updates):
     conn.commit()
     conn.close()
     print("✅ Scooter updated.")
-    
-def update_scooter_information():
-    """Update scooter information via CLI and call update_scooter() with proper role checks."""
+
+def update_scooter_via_cli():
+    """Update scooter information via CLI and call update_scooter_information() with proper role checks."""
     scooter_id = input("Enter scooter ID to update: ").strip()
     if not scooter_id:
         print("❌ No scooter ID provided.")
@@ -236,6 +235,7 @@ def update_scooter_information():
 
     if not scooter:
         print(f"❌ Scooter with ID {scooter_id} not found.")
+        conn.close()
         return
 
     print("\nCurrent information:")
@@ -250,7 +250,6 @@ def update_scooter_information():
     print(f"Mileage: {scooter[12]}")
     print(f"Last maintenance: {scooter[13]}")
 
-    # Verzamel updates
     updates = {}
 
     soc = input("New State of Charge (0-100): ").strip()
@@ -281,8 +280,8 @@ def update_scooter_information():
             lat = float(lat)
             lon = float(lon)
             if validate_lat(lat) and validate_long(lon):
-                updates["latitude"] = lat
-                updates["longitude"] = lon
+                updates["location_lat"] = lat
+                updates["location_long"] = lon
         except:
             pass
 
@@ -304,12 +303,11 @@ def update_scooter_information():
         updates["out_of_service"] = int(out_of_service)
 
     if updates:
-        update_scooter(scooter_id, updates)
+        update_scooter_information(scooter_id, updates)
     else:
         print("❌ No valid updates entered.")
 
     conn.close()
-
 
 def delete_scooter(scooter_id):
     """Delete a scooter. Only allowed for SysAdmin or SuperAdmin."""
@@ -325,8 +323,6 @@ def delete_scooter(scooter_id):
     conn.close()
     print("✅ Scooter deleted.")
 
-
-
 def view_scooter_details(scooter_id=None):
     """View detailed information about a scooter."""
     if not scooter_id:
@@ -340,24 +336,23 @@ def view_scooter_details(scooter_id=None):
     cur = conn.cursor()
     
     cur.execute("""
-        SELECT * FROM scooters 
-        WHERE scooter_id = ?
+        SELECT * FROM scooters WHERE scooter_id = ?
     """, (scooter_id,))
     
     scooter = cur.fetchone()
     if not scooter:
         print(f"❌ Scooter with ID {scooter_id} not found.")
+        conn.close()
         return
-    
+
+    fields = [
+        "Scooter ID", "Brand", "Model", "Serial Number", "Top Speed (km/h)", "Battery Capacity (Wh)",
+        "State of Charge (%)", "Target SoC Min", "Target SoC Max", "Latitude", "Longitude",
+        "Out of Service", "Mileage (km)", "Last Maintenance", "In Service Date"
+    ]
+
     print("\n=== Scooter Details ===")
-    print(f"Scooter ID: {scooter[0]}")
-    print(f"Location: {scooter[1]}")
-    print(f"Status: {scooter[2]}")
-    print(f"Battery: {scooter[3]}%")
-    print(f"Last maintenance: {scooter[4]}")
-    print(f"Next maintenance due: {scooter[5]}")
-    print(f"Total trips: {scooter[6]}")
-    print(f"Total distance: {scooter[7]} km")
+    for label, value in zip(fields, scooter):
+        print(f"{label}: {value}")
     
     conn.close()
-

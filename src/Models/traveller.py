@@ -3,7 +3,7 @@ import uuid
 
 class Traveller:
     def __init__(self, first_name, last_name, birthday, gender, street_name, house_number, zip_code,
-                 city, email, mobile_phone, driving_license):
+                 city, email, mobile, driving_license):
         self.first_name = first_name
         self.last_name = last_name
         self.birthday = birthday
@@ -13,11 +13,11 @@ class Traveller:
         self.zip_code = zip_code
         self.city = city
         self.email = email
-        self.mobile_phone = mobile_phone
+        self.mobile = mobile
         self.driving_license = driving_license
 
         self.registration_date = datetime.now().strftime('%Y-%m-%d')
-        self.traveller_id = str(uuid.uuid4())[:10]  # Or a custom ID generator
+        self.traveller_id = str(uuid.uuid4())[:10]  # Can be replaced with another unique generator
 
     def as_dict(self):
         return {
@@ -31,7 +31,7 @@ class Traveller:
             "zip_code": self.zip_code,
             "city": self.city,
             "email": self.email,
-            "mobile_phone": self.mobile_phone,
+            "mobile": self.mobile,
             "driving_license": self.driving_license,
             "registration_date": self.registration_date
         }
