@@ -56,32 +56,93 @@ def register_user_interactively():
 
     first = input("First name: ")
     last = input("Last name: ")
+    success, message = insert_user(username, password, role, first, last)
+    if success:
+        print(f"✅ {role} account created.")
+    else:
+        print(f"❌ {message}")
 
-    # Insert user into database
+def view_all_users():
+    """Debug function to view all users in the database"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cur = conn.cursor()
+        cur.execute("SELECT username, role, first_name, last_name FROM users")
+        users = cur.fetchall()
+        print("\n=== All Users in Database ===")
+        for user in users:
+            print(f"Username: {user[0]}, Role: {user[1]}, Name: {user[2]} {user[3]}")
+    except Exception as e:
+        print(f"❌ Error viewing users: {str(e)}")
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
+
+def update_current_user_profile():
+    """Update the current user's profile."""
+    current_user = get_current_user()
+    print("\n=== Update Profile ===")
+    print(f"Current profile for {current_user['username']}")
+    
+    # Get current user's data
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT username, first_name, last_name, email FROM users WHERE user_id = ?", 
+               (current_user['user_id'],))
+    user_data = cur.fetchone()
+    
+    if not user_data:
+        print("❌ User not found.")
+        return False
+    
+    # Show current data
+    print("\nCurrent information:")
+    print(f"Username: {user_data[0]}")
+    print(f"First name: {user_data[1]}")
+    print(f"Last name: {user_data[2]}")
+    print(f"Email: {user_data[3]}")
+    
+    # Get updates
+    print("\nLeave fields empty to keep current values")
+    new_first = input("New first name: ").strip() or user_data[1]
+    new_last = input("New last name: ").strip() or user_data[2]
+    new_email = input("New email: ").strip() or user_data[3]
+    
+    # Update database
+    cur.execute("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE user_id = ?",
+               (new_first, new_last, new_email, current_user['user_id']))
+    conn.commit()
+    conn.close()
+    
+    print("✅ Profile updated successfully.")
+    return True
+
+def delete_current_user():
+    """Delete the current user's account."""
+    print("⚠️ WARNING: This will permanently delete your account!")
+    confirm = input("Type 'DELETE' to confirm: ").strip()
+    
+    if confirm != "DELETE":
+        print("❌ Deletion cancelled.")
+        return False
+    
+    current_user = get_current_user()
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
     try:
-        # Check if username already exists
-        cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (username,))
-        if cur.fetchone()[0] > 0:
-            print("❌ Username already exists")
-            return
-
-        # Hash the password
-        password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        
-        # Insert user
-        cur.execute("""
-            INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (username, password_hash, role, first, last, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-        
+        # Delete user
+        cur.execute("DELETE FROM users WHERE user_id = ?", (current_user['user_id'],))
         conn.commit()
-        print(f"✅ {role} account created successfully.")
+        print("✅ Account deleted successfully.")
+        print("🔒 You have been logged out.")
+        return False
     except Exception as e:
         conn.rollback()
-        print(f"❌ Error creating user: {str(e)}")
+        print(f"❌ Error deleting account: {str(e)}")
+        return False
     finally:
         conn.close()
 
@@ -236,3 +297,57 @@ def delete_user():
             conn.close()
         except:
             pass
+
+def create_admin_interactively():
+    """Interactive menu for creating a new administrator."""
+    print("\n=== Create New Administrator ===")
+    print("1. Create System Administrator")
+    print("2. Create Service Engineer")
+    print("\n0. Back")
+    
+    choice = input("\nChoose administrator type: ").strip()
+    if choice == "1":
+        print("🔍 Creating new System Administrator...")
+        register_user_interactively()
+    elif choice == "2":
+        print("🔍 Creating new Service Engineer...")
+        register_user_interactively()
+    elif choice != "0":
+        print("Invalid choice")
+    return True
+
+def update_admin_interactively():
+    """Interactive menu for updating an administrator."""
+    print("\n=== Update Administrator ===")
+    print("1. Update System Administrator")
+    print("2. Update Service Engineer")
+    print("\n0. Back")
+    
+    choice = input("\nChoose administrator type: ").strip()
+    if choice == "1":
+        print("🔍 Updating System Administrator...")
+        update_user()
+    elif choice == "2":
+        print("🔍 Updating Service Engineer...")
+        update_user()
+    elif choice != "0":
+        print("Invalid choice")
+    return True
+
+def delete_admin_interactively():
+    """Interactive menu for deleting an administrator."""
+    print("\n=== Delete Administrator ===")
+    print("1. Delete System Administrator")
+    print("2. Delete Service Engineer")
+    print("\n0. Back")
+    
+    choice = input("\nChoose administrator type: ").strip()
+    if choice == "1":
+        print("🔍 Deleting System Administrator...")
+        delete_user()
+    elif choice == "2":
+        print("🔍 Deleting Service Engineer...")
+        delete_user()
+    elif choice != "0":
+        print("Invalid choice")
+    return True
