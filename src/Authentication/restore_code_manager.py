@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from Authentication.secure_auth import SecureAuth
 from session import get_current_user
 import os
-from Data.activity_logger import log_activity
+from Data.log_viewer import view_system_logs
 
 DB_PATH = "data/urban_mobility.db"
 CODE_EXPIRY_HOURS = 24
