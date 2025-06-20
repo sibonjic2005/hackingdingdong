@@ -149,7 +149,7 @@ class UserAuth:
             """, (username, password_hash, registration_date))
             conn.commit()
             
-            self._log_activity(username, "REGISTER_SUCCESS")
+            self.log_activity(username, "REGISTER_SUCCESS")
             return True, "User registered successfully"
         except Exception as e:
             conn.rollback()
@@ -168,20 +168,20 @@ class UserAuth:
             if result:
                 hashed = result[0]
                 if self.verify_password(password, hashed):
-                    self._log_activity(username, "LOGIN_SUCCESS")
+                    self.log_activity(username, "LOGIN_SUCCESS")
                     return True, "Login successful"
                 else:
-                    self._log_activity(username, "LOGIN_FAILED")
+                    self.log_activity(username, "LOGIN_FAILED")
                     return False, "Invalid password"
             else:
-                self._log_activity(username, "LOGIN_FAILED")
+                self.log_activity(username, "LOGIN_FAILED")
                 return False, "User not found"
         except Exception as e:
             return False, f"Error during login: {str(e)}"
         finally:
             conn.close()
 
-    def _log_activity(self, username, action):
+    def log_activity(self, username, action):
         """Log user activity with encryption"""
         log_entry = {
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -208,7 +208,7 @@ class UserAuth:
                                 (now - datetime.fromisoformat(log['timestamp'])).total_seconds() < 600)
                 
                 if failed_count >= 5:
-                    self._log_activity(username, "SUSPICIOUS_ACTIVITY")
+                    self.log_activity(username, "SUSPICIOUS_ACTIVITY")
         except Exception as e:
             print(f"Error reading logs: {str(e)}")
             logs = []

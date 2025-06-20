@@ -5,6 +5,11 @@ from Main.user_operations import *
 from Main.scooter_operations import *
 from Main.traveller_operation import create_traveller_from_input
 from Data.user_auth import UserAuth
+from Data.log_viewer import view_system_logs
+from Data.backup_handler import create_system_backup
+from Authentication.restore_code_manager import generate_restore_code
+from Authentication.restore_code_revoker import revoke_restore_code
+from session import get_current_user
 
 # Initialize authentication
 auth = SecureAuth()
@@ -650,14 +655,25 @@ def system_management_menu():
     
     choice = input("\nChoose an option: ").strip()
     if choice == "1":
+        view_system_logs(49)
         print("🛠 Logs view (TBD)")
     elif choice == "2":
-        print("🛠 Create backup")
+            # Create and encrypt backup
+            if get_current_user()['role'] in ['Super Administrator', 'System Administrator']:
+                backup_path = create_system_backup()
+                if backup_path:
+                    print(f"Backup successfully created at: {backup_path}")
+            else:
+                print("❌ Only administrators can create backups")
+            input("\nPress Enter to continue...")
     elif choice == "3":
+        generate_restore_code()
         print("🛠 Generate restore code")
     elif choice == "4":
+        revoke_restore_code()
         print("🛠 Revoke restore code")
     elif choice != "0":
+        
         print("Invalid choice")
     return True
 
