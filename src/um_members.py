@@ -1,51 +1,23 @@
-import msvcrt
-from Authentication.secure_auth import SecureAuth
-from session import set_current_user, get_current_user, clear_current_user
-from Main.user_operations import *
-from Main.scooter_operations import *
-from Main.traveller_operation import create_traveller_from_input
+
+from Main.menu import *
+from session import *
 from Data.user_auth import UserAuth
-from Data.log_viewer import view_system_logs
-from Data.backup_handler import create_system_backup
-from Authentication.restore_code_manager import generate_restore_code
-from Authentication.restore_code_revoker import revoke_restore_code
-from session import get_current_user
 
-# Initialize authentication
-auth = SecureAuth()
 
-from Authentication.auth import SUPER_ADMIN_USERNAME, SUPER_ADMIN_PASSWORD, SUPER_ADMIN_USER, verify_admin_credentials
-
-def login():
+def login_interface():
     print("=== Login ===")
-    username = input("Username: ").strip()
-    password = input("Password: ").strip()
+    username = input("Username: ")
+    password = input("Password: ")
 
-    # Verify credentials using the auth module
-    if verify_admin_credentials(username, password):
-        print(f"✅ Login successful as {get_current_user()['role']}")
+    auth = SecureAuth()
+    success, message = auth.login(username, password)
+
+    if success:
+        print(f"✅ {message}")
         return True
     else:
-        print("❌ Invalid username or password")
+        print(f"❌ {message}")
         return False
-
-def view_all_users():
-    """Debug function to view all users in the database"""
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT username, role, first_name, last_name FROM users")
-        users = cur.fetchall()
-        print("\n=== All Users in Database ===")
-        for user in users:
-            print(f"Username: {user[0]}, Role: {user[1]}, Name: {user[2]} {user[3]}")
-    except Exception as e:
-        print(f"❌ Error viewing users: {str(e)}")
-    finally:
-        try:
-            conn.close()
-        except:
-            pass
 
 # Add registration function
 def register():
@@ -63,14 +35,8 @@ def register():
     else:
         print(f"❌ {message}")
         return False
-
-# Update main menu to include registration option
-def main_menu():
-    """Display the main menu based on user role."""
-    role = get_current_user()["role"]
-    print("\n=== Main Menu ===")
-    print(f"Logged in as: {get_current_user()['username']} ({role})")
     
+<<<<<<< HEAD
     if role == "Super Administrator":
         print("\n1. Manage Administrators")
         print("2. Travellers")
@@ -893,10 +859,9 @@ def delete_scooter():
     
     conn.close()
 
+=======
+>>>>>>> bb1af36caf557d26e61ce53ff3954c9040cb0609
 if __name__ == "__main__":
-    # Initialize authentication
-    auth = SecureAuth()
-    
     # Start login process
-    if login():
+    if login_interface():
         main_menu()

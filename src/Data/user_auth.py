@@ -2,6 +2,7 @@ import sqlite3
 import bcrypt
 import os
 from datetime import datetime
+from Data import *
 from cryptography.fernet import Fernet
 import json
 from config import DB_FILE, LOG_FILE
@@ -105,32 +106,6 @@ class UserAuth:
         """Decrypt log data"""
         return self.fernet.decrypt(data).decode()
 
-    def validate_username(self, username):
-        """Validate username format"""
-        if not 8 <= len(username) <= 10:
-            return False, "Username must be between 8 and 10 characters"
-        if not (username[0].isalpha() or username[0] == '_'):
-            return False, "Username must start with a letter or underscore"
-        allowed_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'")
-        if not all(c in allowed_chars for c in username):
-            return False, "Username can only contain letters, numbers, _, ' or ."
-        return True, ""
-
-    def validate_password(self, password):
-        """Validate password format"""
-        if not 12 <= len(password) <= 30:
-            return False, "Password must be between 12 and 30 characters"
-        if not any(c.isupper() for c in password):
-            return False, "Password must contain at least one uppercase letter"
-        if not any(c.islower() for c in password):
-            return False, "Password must contain at least one lowercase letter"
-        if not any(c.isdigit() for c in password):
-            return False, "Password must contain at least one digit"
-        special_chars = set("~!@#$%&_-+=")
-        if not any(c in special_chars for c in password):
-            return False, "Password must contain at least one special character (~!@#$%&_-+=)"
-        return True, ""
-
     def hash_password(self, password):
         """Hash password using bcrypt"""
         return bcrypt.hashpw(password.encode(), bcrypt.gensalt())
@@ -218,6 +193,7 @@ class UserAuth:
     except Exception as e:
         print(f"Error reading logs: {str(e)}")
 
+<<<<<<< HEAD
     logs.append(log_entry)
     encrypted_data = self._encrypt_log(json.dumps(logs))
     
@@ -241,3 +217,13 @@ class UserAuth:
     finally:
         if conn:
             conn.close()
+=======
+        logs.append(log_entry)
+        encrypted_data = self._encrypt_log(json.dumps(logs))
+        
+        with open(self.log_file, 'wb') as f:
+            f.write(encrypted_data)
+
+
+
+>>>>>>> bb1af36caf557d26e61ce53ff3954c9040cb0609

@@ -91,33 +91,82 @@ def search_travellers():
     return decrypted
 
 
-def update_traveller_record(traveller_id, update_data):
-    """Update fields of an existing traveller record."""
+def update_traveller_record():
+    """Interactively update editable fields for a traveller."""
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
         return
-    if not update_data:
-        print("No update data provided.")
+
+    traveller_id = input("Enter Traveller ID to update: ").strip()
+    if not traveller_id or len(traveller_id) < 5:
+        print("Invalid Traveller ID format.")
         return
 
+    editable_fields = {
+        "1": "first_name",
+        "2": "last_name",
+        "3": "street",
+        "4": "house_number",
+        "5": "zip_code",
+        "6": "city",
+        "7": "email",
+        "8": "mobile_phone"
+    }
+
+    print("\nChoose fields to update (one at a time):")
+    for key, field in editable_fields.items():
+        print(f"{key}. {field}")
+
+    update_data = {}
+
+    while True:
+        choice = input("\nEnter number of field to update (or ENTER to finish): ").strip()
+        if choice == "":
+            break
+        if choice not in editable_fields:
+            print("❌ Invalid choice.")
+            continue
+
+        field = editable_fields[choice]
+        new_value = input(f"Enter new value for {field}: ").strip()
+
+        # Validation and encryption where needed
+        if field == "zip_code" and not validate_zip(new_value):
+            print("❌ Invalid ZIP code.")
+            continue
+        if field == "email" and not validate_email(new_value):
+            print("❌ Invalid email address.")
+            continue
+        if field == "mobile_phone" and not validate_mobile(new_value):
+            print("❌ Invalid mobile number.")
+            continue
+        if field == "house_number":
+            if not new_value.isdigit():
+                print("❌ House number must be numeric.")
+                continue
+            new_value = int(new_value)
+        if field in ["street", "zip_code", "email", "mobile_phone"]:
+            new_value = encrypt(new_value)
+
+        update_data[field] = new_value
+
+    if not update_data:
+        print("⚠ No updates made.")
+        return
+
+    
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
 
-    fields = []
-    values = []
+    parts = [f"{k} = ?" for k in update_data]
+    values = list(update_data.values()) + [traveller_id]
 
-    for key, val in update_data.items():
-        if key in ['street', 'zip_code', 'email', 'mobile_phone']:
-            val = encrypt(val)
-        fields.append(f"{key} = ?")
-        values.append(val)
-
-    values.append(traveller_id)
-    sql = f"UPDATE travellers SET {', '.join(fields)} WHERE traveller_id = ?"
-    cur.execute(sql, values)
+    cur.execute(f"UPDATE travellers SET {', '.join(parts)} WHERE traveller_id = ?", values)
     conn.commit()
     conn.close()
-    print("Traveller record updated successfully.")
+
+    print("✅ Traveller record updated successfully.")
+
 
 
 def remove_traveller(traveller_id):

@@ -2,13 +2,13 @@ from datetime import datetime
 import uuid
 
 class Traveller:
-    def __init__(self, first_name, last_name, birthday, gender, street, house_number, zip_code,
+    def __init__(self, first_name, last_name, birthday, gender, street_name, house_number, zip_code,
                  city, email, mobile_phone, driving_license):
         self.first_name = first_name
         self.last_name = last_name
         self.birthday = birthday
         self.gender = gender
-        self.street = street
+        self.street_name = street_name
         self.house_number = house_number
         self.zip_code = zip_code
         self.city = city
@@ -26,7 +26,7 @@ class Traveller:
             "last_name": self.last_name,
             "birthday": self.birthday,
             "gender": self.gender,
-            "street": self.street,
+            "street_name": self.street_name,
             "house_number": self.house_number,
             "zip_code": self.zip_code,
             "city": self.city,
