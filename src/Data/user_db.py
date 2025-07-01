@@ -2,7 +2,7 @@ import sqlite3
 import os
 import sys
 from datetime import datetime
-from crypto import encrypt
+from Data.crypto import encrypt
 from session import get_current_user
 import hashlib
 from config import DB_FILE

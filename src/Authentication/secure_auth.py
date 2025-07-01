@@ -4,19 +4,15 @@ import os
 import json
 from datetime import datetime
 from cryptography.fernet import Fernet
-from Data import *
 from Data.input_validation import *
-from Authentication.user_auth import UserAuth
 from config import DB_FILE, LOG_FILE
-from session import *
+from session import set_current_user
 
-# Hardcoded super admin credentials
 SUPER_ADMIN_USERNAME = "super_admin"
 SUPER_ADMIN_PASSWORD = "Admin_123?"
 
-# Hardcoded super admin user data
 SUPER_ADMIN_USER = {
-    "username": "super_admin",
+    "username": SUPER_ADMIN_USERNAME,
     "role": "Super Administrator",
     "user_id": 1,
     "first_name": "System",
@@ -30,16 +26,19 @@ class SecureAuth:
         self._ensure_database()
         self._ensure_log_file()
         self._load_key()
+        self._create_admin_user_if_not_exists()
 
     def _ensure_database(self):
-        """Create database and users table if they don't exist"""
         conn = sqlite3.connect(self.db_file)
         cur = conn.cursor()
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
+                user_id INTEGER PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-e                password_hash TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
                 registration_date TEXT NOT NULL
             )
         ''')
@@ -47,13 +46,11 @@ e                password_hash TEXT NOT NULL,
         conn.close()
 
     def _ensure_log_file(self):
-        """Create encrypted log file if it doesn't exist"""
         if not os.path.exists(self.log_file):
             with open(self.log_file, 'wb') as f:
                 f.write(b'')
 
     def _load_key(self):
-        """Load or generate encryption key for logs"""
         key_file = 'encryption_key.key'
         if not os.path.exists(key_file):
             key = Fernet.generate_key()
@@ -64,29 +61,78 @@ e                password_hash TEXT NOT NULL,
                 key = f.read()
         self.fernet = Fernet(key)
 
+    def _create_admin_user_if_not_exists(self):
+        conn = sqlite3.connect(self.db_file)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (SUPER_ADMIN_USERNAME,))
+        if cur.fetchone()[0] == 0:
+            password_hash = bcrypt.hashpw(SUPER_ADMIN_PASSWORD.encode(), bcrypt.gensalt()).decode()
+            registration_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cur.execute("""
+                INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                SUPER_ADMIN_USERNAME, password_hash, "Super Administrator",
+                "System", "Administrator", registration_date
+            ))
+            conn.commit()
+            print("✅ Super Admin aangemaakt")
+        conn.close()
+
+    def _encrypt_log(self, data):
+        return self.fernet.encrypt(data.encode())
+
+    def _decrypt_log(self, data):
+        return self.fernet.decrypt(data).decode()
 
     def verify_password(self, password, hashed):
-        """Verify password against hash"""
-        return bcrypt.checkpw(password.encode(), hashed)
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+
+    def register_user(self, username, password, role, first_name, last_name):
+        valid, msg = validate_username(username)
+        if not valid:
+            return False, msg
+
+        valid, msg = validate_password(password)
+        if not valid:
+            return False, msg
+
+        conn = sqlite3.connect(self.db_file)
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (username,))
+            if cur.fetchone()[0] > 0:
+                return False, "❌ Gebruikersnaam bestaat al."
+
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            registration_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cur.execute("""
+                INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (username, password_hash, role, first_name, last_name, registration_date))
+            conn.commit()
+            self.log_activity(username, "REGISTER_SUCCESS")
+            return True, "✅ Gebruiker succesvol geregistreerd"
+        except Exception as e:
+            conn.rollback()
+            return False, f"❌ Fout bij registratie: {str(e)}"
+        finally:
+            conn.close()
 
     def login(self, username, password):
-        """Authenticate user and set session if successful."""
-        # Hardcoded super admin login
         if username == SUPER_ADMIN_USERNAME and password == SUPER_ADMIN_PASSWORD:
             set_current_user(SUPER_ADMIN_USER)
             self.log_activity(username, "LOGIN_SUCCESS")
-            return True, "Super Administrator login successful"
+            return True, "✅ Super Administrator login successful"
 
-        conn = None
-        cur = None
+        conn = sqlite3.connect(self.db_file)
+        cur = conn.cursor()
         try:
-            conn = sqlite3.connect(self.db_file)
-            cur = conn.cursor()
             cur.execute("SELECT user_id, password_hash, role, first_name, last_name FROM users WHERE username = ?", (username,))
             result = cur.fetchone()
             if not result:
-                self._log_activity(username, "LOGIN_FAILED")
-                return False, "User not found"
+                self.log_activity(username, "LOGIN_FAILED")
+                return False, "❌ Gebruiker niet gevonden"
 
             user_id, password_hash, role, first_name, last_name = result
             if self.verify_password(password, password_hash):
@@ -97,95 +143,78 @@ e                password_hash TEXT NOT NULL,
                     "first_name": first_name,
                     "last_name": last_name
                 })
-                self._log_activity(username, "LOGIN_SUCCESS")
-                return True, "Login successful"
+                self.log_activity(username, "LOGIN_SUCCESS")
+                return True, "✅ Inloggen geslaagd"
             else:
-                self._log_activity(username, "LOGIN_FAILED")
-                return False, "Incorrect password"
+                self.log_activity(username, "LOGIN_FAILED")
+                return False, "❌ Verkeerd wachtwoord"
         except Exception as e:
-            return False, f"Login error: {str(e)}"
+            return False, f"❌ Fout bij inloggen: {str(e)}"
         finally:
-            if cur: cur.close()
-            if conn: conn.close()
-    
+            conn.close()
+
     def log_activity(self, username, action):
-        """Log user activity with encryption"""
-        auth = UserAuth()
         log_entry = {
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'username': username,
             'action': action
         }
-        
-        # Initialize logs as empty list first
+
         logs = []
-        
-        # Check for suspicious activity
         try:
             with open(self.log_file, 'rb') as f:
                 encrypted_data = f.read()
             if encrypted_data:
-                decrypted_data = auth._decrypt_log(encrypted_data)
+                decrypted_data = self._decrypt_log(encrypted_data)
                 logs = json.loads(decrypted_data)
-                
-                # Count failed attempts in last 10 minutes
+
                 now = datetime.now()
-                failed_count = sum(1 for log in logs[-10:] 
-                                if log['username'] == username and
-                                log['action'] == 'LOGIN_FAILED' and
-                                (now - datetime.fromisoformat(log['timestamp'])).total_seconds() < 600)
-                
+                failed_count = sum(1 for log in logs[-10:] if
+                    log['username'] == username and
+                    log['action'] == 'LOGIN_FAILED' and
+                    (now - datetime.fromisoformat(log['timestamp'])).total_seconds() < 600)
+
                 if failed_count >= 5:
                     self.log_activity(username, "SUSPICIOUS_ACTIVITY")
         except Exception as e:
-            print(f"Error reading logs: {str(e)}")
+            print(f"⚠️ Fout bij lezen van logbestand: {str(e)}")
             logs = []
 
         logs.append(log_entry)
-        encrypted_data = auth._encrypt_log(json.dumps(logs))
-        
+        encrypted_data = self._encrypt_log(json.dumps(logs))
         with open(self.log_file, 'wb') as f:
             f.write(encrypted_data)
-        
-                
-def reset_service_engineer_password():
-    """Reset password for a service engineer."""
-    print("\n=== Reset Service Engineer Password ===")
-    
-    # Get list of service engineers
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-    cur.execute("SELECT user_id, username, first_name, last_name FROM users WHERE role = 'Service Engineer'")
-    engineers = cur.fetchall()
-    
-    if not engineers:
-        print("❌ No service engineers found.")
-        return False
-    
-    print("\nAvailable Service Engineers:")
-    for i, (user_id, username, first, last) in enumerate(engineers, 1):
-        print(f"{i}. {first} {last} ({username})")
-    
-    choice = input("\nChoose engineer to reset password (1-{}): ".format(len(engineers))).strip()
-    if not choice.isdigit() or int(choice) not in range(1, len(engineers) + 1):
-        print("❌ Invalid choice.")
-        return False
-    
-    selected_engineer = engineers[int(choice) - 1]
-    user_id = selected_engineer[0]
-    
-    # Generate new password
-    new_password = input("Enter new password (12-30 chars): ")
-    while not validate_password(new_password):
-        new_password = input("❌ Invalid. Enter valid password (12-30 chars): ")
-    
-    # Update password in database
-    password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-    cur.execute("UPDATE users SET password_hash = ? WHERE user_id = ?", 
-               (password_hash, user_id))
-    conn.commit()
-    conn.close()
-    
-    print("✅ Password reset successfully.")
-    return True
-    
+
+    def reset_service_engineer_password(self):
+        print("\n🔧 Reset Service Engineer Password")
+        conn = sqlite3.connect(self.db_file)
+        cur = conn.cursor()
+        cur.execute("SELECT user_id, username, first_name, last_name FROM users WHERE role = 'Service Engineer'")
+        engineers = cur.fetchall()
+
+        if not engineers:
+            print("❌ Geen service engineers gevonden.")
+            return False
+
+        print("\nBeschikbare Service Engineers:")
+        for i, (user_id, username, first, last) in enumerate(engineers, 1):
+            print(f"{i}. {first} {last} ({username})")
+
+        choice = input(f"\nKies een engineer (1-{len(engineers)}): ").strip()
+        if not choice.isdigit() or int(choice) not in range(1, len(engineers) + 1):
+            print("❌ Ongeldige keuze.")
+            return False
+
+        selected = engineers[int(choice) - 1]
+        user_id = selected[0]
+        new_password = input("Nieuw wachtwoord (12-30 tekens): ")
+        while not validate_password(new_password):
+            new_password = input("❌ Ongeldig. Probeer opnieuw: ")
+
+        password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        cur.execute("UPDATE users SET password_hash = ? WHERE user_id = ?", (password_hash, user_id))
+        conn.commit()
+        conn.close()
+
+        print("✅ Wachtwoord succesvol gereset.")
+        return True
