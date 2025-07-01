@@ -49,11 +49,14 @@ def validate_serial_number(serial: str) -> bool:
 def validate_soc(soc: int) -> bool:
     return 0 <= soc <= 100
 
-def validate_lat(lat: float) -> bool:
-    return 51,85 <= lat <= 52,00
-
-def validate_long(lon: float) -> bool:
-    return 4,35 <= lon <= 4,55
+def validate_lat_lon(value):
+    try:
+        float_val = float(value)
+        # Moet 5 decimalen hebben
+        decimal_places = len(value.split(".")[1]) if "." in value else 0
+        return decimal_places >= 5
+    except (ValueError, IndexError):
+        return False
 
 def validate_iso_date(date_str: str) -> bool:
     try:

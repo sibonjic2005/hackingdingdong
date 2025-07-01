@@ -6,6 +6,10 @@ from Data.traveller_db import insert_traveller
 from Data.input_validation import *
 from config import DB_FILE
 
+DUTCH_CITIES = [
+    "Amsterdam", "Rotterdam", "Utrecht", "Den Haag", "Eindhoven",
+    "Groningen", "Nijmegen", "Maastricht", "Tilburg", "Leiden"
+]
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
@@ -31,8 +35,18 @@ def create_traveller_from_input():
     while not validate_zip(zip_code):
         zip_code = input("Invalid ZIP. Try again: ")
 
-    city = input("City: ")
+    print("Choose a city from the list below:")
+    for idx, city in enumerate(DUTCH_CITIES, start=1):
+        print(f"{idx}. {city}")
+
+    city_choice = input("Enter number (1–10): ").strip()
+    while not city_choice.isdigit() or int(city_choice) not in range(1, 11):
+        city_choice = input("❌ Invalid. Choose a number from 1 to 10: ").strip()
+
+    city = DUTCH_CITIES[int(city_choice) - 1]
     email = input("Email: ")
+    while not validate_email(email):
+        email = input("Invalid email. Try again: ")
     mobile = input("Mobile (start with 06, 10 digits total): ")
     while not validate_mobile(mobile):
         mobile = input("Invalid mobile. Try again: ")
@@ -99,7 +113,30 @@ def update_traveller_record():
     if not traveller_id or len(traveller_id) < 5:
         print("Invalid Traveller ID format.")
         return
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM travellers WHERE traveller_id = ?", (traveller_id,))
+    row = cur.fetchone()
+    conn.close()
 
+    if not row:
+        print("❌ Traveller not found.")
+        return
+
+    row = list(row)
+    row[5] = decrypt(row[5])  # street_name
+    row[7] = decrypt(row[7])  # zip_code
+    row[9] = decrypt(row[9])  # email
+    row[10] = decrypt(row[10])  # mobile
+
+    print("\nCurrent traveller information:")
+    print(f"Name: {row[1]} {row[2]}")
+    print(f"Birthday: {row[3]}")
+    print(f"Gender: {row[4]}")
+    print(f"Address: {row[5]} {row[6]}, {row[7]} {row[8]}")
+    print(f"Email: {row[9]}")
+    print(f"Mobile: {row[10]}")
+    
     editable_fields = {
         "1": "first_name",
         "2": "last_name",
@@ -165,14 +202,50 @@ def update_traveller_record():
 
     print("✅ Traveller record updated successfully.")
 
-def remove_traveller(traveller_id):
+def remove_traveller():
     """Delete a traveller by their unique ID."""
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
         return
+    
+    traveller_id = input("Enter Traveller ID to remove: ").strip()
+    if not traveller_id or len(traveller_id) < 5:
+        print("Invalid Traveller ID format.")
+        return
+    
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("DELETE FROM travellers WHERE traveller_id = ?", (traveller_id,))
     conn.commit()
     conn.close()
     print("🗑️ Traveller record deleted.")
+
+def view_all_travellers():
+    if not is_admin_user():
+        print("❌ You do not have permission to perform this action.")
+        return
+
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute("SELECT * FROM travellers")
+    travellers = cur.fetchall()
+
+    if not travellers:
+        print("🚫 Geen travellers gevonden.")
+        return
+
+    for t in travellers:
+        print(f"""
+                ID: {t['traveller_id']}
+                Naam: {t['first_name']} {t['last_name']}
+                Geboortedatum: {t['birthday']}
+                Geslacht: {t['gender']}
+                Adres: {decrypt(t['street_name'])} {t['house_number']}, {decrypt(t['zip_code'])} {t['city']}
+                Email: {decrypt(t['email'])}
+                Mobiel: {decrypt(t['mobile'])}
+                Rijbewijs: {t['driving_license']}
+                Registratiedatum: {t['registration_date']}
+                """)
+    conn.close()

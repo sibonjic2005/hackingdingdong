@@ -1,11 +1,12 @@
 import sqlite3
-from Authentication.secure_auth import SecureAuth
+from Authentication.secure_auth import *
 from session import get_current_user
 from Data.log_viewer import view_system_logs
 
 DB_PATH = "data/urban_mobility.db"
 
 def revoke_restore_code():
+    auth = SecureAuth()
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -59,7 +60,7 @@ def revoke_restore_code():
         
         conn.commit()
 
-        log_activity(
+        auth.log_activity(
             current_user['username'],
             "Revoked restore code",
             f"Code ID: {code_id}"

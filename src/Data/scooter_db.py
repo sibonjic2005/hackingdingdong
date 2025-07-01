@@ -40,3 +40,12 @@ def insert_scooter(scooter: Scooter):
     conn.commit()
     conn.close()
     print("[✓] Scooter registered.")
+
+def get_all_scooters():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM scooters")
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

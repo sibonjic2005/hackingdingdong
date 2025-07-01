@@ -6,11 +6,12 @@ from Data.crypto import encrypt
 from session import get_current_user
 from Data.user_db import insert_user
 from Data.input_validation import validate_username, validate_password
+from Authentication.secure_auth import *
 from session import get_current_user
 from config import DB_FILE
 import bcrypt
 from datetime import datetime
-    
+current_user = get_current_user()
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
@@ -161,12 +162,21 @@ def update_user():
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
 
-    cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
-    row = cur.fetchone()
-    if not row:
+    cur.execute("SELECT username, role, first_name, last_name FROM users WHERE user_id = ?", (user_id,))
+    user_data = cur.fetchone()
+    if not user_data:
         print("⚠ User not found.")
         return
-    target_role = row[0]
+
+    print(f"\nCurrent user data:")
+    print(f"Username: {user_data[0]}")
+    print(f"Role: {user_data[1]}")
+    print(f"Name: {user_data[2]} {user_data[3]}")
+    target_role = user_data[1]
+    if not user_data:
+        print("⚠ User not found.")
+        return
+    target_role = user_data[1]
 
     if actor_role == "System Administrator":
         if target_role == "System Administrator" and user_id != current_user_id:
@@ -180,9 +190,10 @@ def update_user():
 
     if choice == "1":
         editable_fields = {
-            "1": "first_name",
-            "2": "last_name",
-            "3": "role"
+            "1": "username",
+            "2": "first_name",
+            "3": "last_name",
+            "4": "role"
         }
 
         print("\nWhich field would you like to update?")
@@ -195,19 +206,56 @@ def update_user():
             return
 
         field = editable_fields[field_choice]
-        new_value = input(f"Enter new value for {field}: ").strip()
-
+        
         if field == "role":
-            if actor_role == "System Administrator" and new_value == "System Administrator" and user_id != current_user_id:
+            if actor_role == "System Administrator" and user_id != current_user_id:
                 print("❌ You cannot assign or change System Administrator roles.")
                 return
-            if new_value not in ["System Administrator", "Service Engineer"]:
-                print("❌ Invalid role.")
+
+            role_options = ["System Administrator", "Service Engineer"]
+            print("\nSelect the new role for the user:")
+            for i, r in enumerate(role_options, 1):
+                print(f"{i}. {r}")
+
+            role_choice = input("Enter the number of the desired role: ").strip()
+            if not role_choice.isdigit() or int(role_choice) not in range(1, len(role_options) + 1):
+                print("❌ Invalid choice.")
+                return
+
+            new_value = role_options[int(role_choice) - 1]
+
+            # Check if same role
+            cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
+            current_role = cur.fetchone()[0]
+            if current_role == new_value:
+                print("ℹ️ User already has this role. No changes made.")
+                return
+
+        elif field == "username":
+            new_value = input("Enter new username (8–10 characters): ").strip()
+            while not validate_username(new_value):
+                new_value = input("❌ Invalid. Enter a valid username: ").strip()
+
+            cur.execute("SELECT COUNT(*) FROM users WHERE username = ?", (new_value,))
+            if cur.fetchone()[0] > 0:
+                print("❌ Username already exists.")
+                return
+
+        elif field == "first_name":
+            new_value = input("Enter new first name: ").strip()
+            if not new_value:
+                print("❌ First name cannot be empty.")
+                return
+
+        elif field == "last_name":
+            new_value = input("Enter new last name: ").strip()
+            if not new_value:
+                print("❌ Last name cannot be empty.")
                 return
 
         cur.execute(f"UPDATE users SET {field} = ? WHERE user_id = ?", (new_value, user_id))
         conn.commit()
-        print("✅ User information updated.")
+        print(f"✅ {field.replace('_', ' ').capitalize()} updated successfully.")
 
     elif choice == "2":
         if actor_role == "System Administrator" and target_role != "Service Engineer" and user_id != current_user_id:
@@ -342,3 +390,49 @@ def delete_admin_interactively():
     elif choice != "0":
         print("Invalid choice")
     return True
+
+
+def view_users_by_role():
+    if not is_admin_user():
+        print("❌ You do not have permission to view users.")
+        return
+
+    if current_user["role"] == "Service Engineer":
+        print("❌ Access denied: you do not have permission to view users.")
+        return
+
+    if current_user["role"] == "Super Administrator":
+        print("\nSelect which user role you'd like to view:")
+        print("1. System Administrators")
+        print("2. Service Engineers")
+        choice = input("Enter choice: ").strip()
+
+        if choice == "1":
+            target_role = "System Administrator"
+        elif choice == "2":
+            target_role = "Service Engineer"
+        else:
+            print("❌ Invalid choice.")
+            return
+
+    elif current_user["role"] == "System Administrator":
+        target_role = "Service Engineer"
+
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT user_id, username, first_name, last_name, role, registration_date
+        FROM users WHERE role = ?
+    """, (target_role,))
+    users = cur.fetchall()
+    conn.close()
+
+    if not users:
+        print(f"\nℹ️ No users found with role '{target_role}'.")
+        return
+
+    print(f"\nUsers with role: {target_role}")
+    print("-" * 50)
+    for u in users:
+        print(f"ID: {u[0]} | Username: {u[1]} | Name: {u[2]} {u[3]} | Registered: {u[5]}")
+    print("-" * 50)

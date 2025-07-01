@@ -1,9 +1,16 @@
-import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from cryptography.fernet import Fernet
+from config import ENCRYPTION_KEY_FILE
 
-key = Fernet.generate_key()
+# Zorg dat het key-bestand bestaat
+if not os.path.exists(ENCRYPTION_KEY_FILE):
+    key = Fernet.generate_key()
+    with open(ENCRYPTION_KEY_FILE, 'wb') as f:
+        f.write(key)
+else:
+    with open(ENCRYPTION_KEY_FILE, 'rb') as f:
+        key = f.read()
+
 fernet = Fernet(key)
 
 def encrypt(text):

@@ -33,7 +33,7 @@ def insert_user(username, password, role, first_name, last_name):
         )
     ''')
 
-    enc_username = encrypt(username)
+
     hashed_pw = hash_password(password)
     reg_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -41,7 +41,7 @@ def insert_user(username, password, role, first_name, last_name):
         cur.execute('''
             INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (enc_username, hashed_pw, role, first_name, last_name, reg_date))
+        ''', (username, hashed_pw, role, first_name, last_name, reg_date))
         conn.commit()
         print(f"[✓] {role} account created successfully.")
         return True, f"{role} account created successfully."

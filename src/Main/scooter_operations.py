@@ -2,10 +2,9 @@ import sqlite3
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from session import get_current_user
 from Models.scooter import Scooter
-from Data.scooter_db import insert_scooter
+from Data.scooter_db import *
 from Data.input_validation import *
 from Data.user_db import get_current_user
 from config import DB_FILE
@@ -20,6 +19,7 @@ ENGINEER_ALLOWED_FIELDS = {
     "mileage",
     "last_maintenance_date"
 }
+
 
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
@@ -71,21 +71,21 @@ def create_scooter_from_input():
         print("Invalid input.")
         return
 
-    try:
-        lat = float(input("Latitude (5 decimals): "))
-        while not validate_lat(lat):
-            lat = float(input("Out of bounds. Try again: "))
-    except:
-        print("Invalid input.")
-        return
+    while True:
+        lat_input = input("Latitude (minimal 5 decimals): ")
+        if validate_lat_lon(lat_input):
+            lat = float(lat_input)
+            break
+        else:
+            print("Invalid input. Try again.")
 
-    try:
-        lon = float(input("Longitude (5 decimals): "))
-        while not validate_long(lon):
-            lon = float(input("Out of bounds. Try again: "))
-    except:
-        print("Invalid input.")
-        return
+    while True:
+        lon_input = input("Longitude (minimal 5 decimals): ")
+        if validate_lat_lon(lon_input):
+            lon = float(lon_input)
+            break
+        else:
+            print("Invalid input. Try again.")
 
     try:
         out = int(input("Out of service (0 = No, 1 = Yes): "))
@@ -356,3 +356,26 @@ def view_scooter_details(scooter_id=None):
         print(f"{label}: {value}")
     
     conn.close()
+
+def view_all_scooters():
+    scooters = get_all_scooters()
+    if not scooters:
+        print("No scooters found.")
+        return
+
+    print("=== All Scooters ===")
+    for s in scooters:
+        print(f"""
+                ID: {s['scooter_id']}
+                Merk: {s['brand']}
+                Model: {s['model']}
+                Serial #: {s['serial_number']}
+                Top Speed: {s['top_speed']} km/h
+                Battery: {s['battery_capacity']} mAh, SOC: {s['state_of_charge']}%
+                SOC target: {s['target_soc_min']}–{s['target_soc_max']}%
+                Locatie: {s['location_lat']}, {s['location_long']}
+                In service sinds: {s['in_service_date']}
+                Laatste onderhoud: {s['last_maintenance_date']}
+                Status: {"Out of service" if s['out_of_service'] else "In service"}
+                Mileage: {s['mileage']} km
+                """)
