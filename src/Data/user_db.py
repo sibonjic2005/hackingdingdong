@@ -2,7 +2,7 @@ import sqlite3
 import os
 import sys
 from datetime import datetime
-from Data.crypto import encrypt
+from crypto import encrypt
 from session import get_current_user
 import hashlib
 from config import DB_FILE
@@ -53,3 +53,19 @@ def insert_user(username, password, role, first_name, last_name):
         return False, f"Error: {str(e)}"
     finally:
         conn.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 6:
+        print("Usage: python user_db.py <username> <password> <role> <first_name> <last_name>")
+        sys.exit(1)
+
+    username = sys.argv[1]
+    password = sys.argv[2]
+    role = sys.argv[3]
+    first_name = sys.argv[4]
+    last_name = sys.argv[5]
+
+    success, message = insert_user(username, password, role, first_name, last_name)
+    if not success:
+        print(f"Error: {message}")
+        sys.exit(1)

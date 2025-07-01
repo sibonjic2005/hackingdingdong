@@ -1,5 +1,5 @@
 import sqlite3
-from Data.crypto import encrypt
+from crypto import encrypt
 from Models.traveller import Traveller
 from config import DB_FILE
 
