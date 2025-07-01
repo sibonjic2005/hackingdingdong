@@ -3,12 +3,19 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session import get_current_user
+
 from Models.scooter import Scooter
 from Data.scooter_db import insert_scooter
 from Data.input_validation import *
 from Data.user_db import get_current_user
 from config import DB_FILE
+
+from Data.logging_util import SystemLogger
+logger = SystemLogger()
+from session import get_current_user
+current_user = get_current_user()
+
+
 
 ENGINEER_ALLOWED_FIELDS = {
     "state_of_charge",
@@ -28,6 +35,7 @@ def create_scooter_from_input():
     """Collect scooter details from user input and create a Scooter object."""
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
+        logger.log_activity(current_user["username"], "tried to register scooter without permission", is_suspicious=True)
         return
     brand = input("Brand: ")
     model = input("Model: ")
@@ -125,6 +133,7 @@ def create_scooter_from_input():
 
     insert_scooter(scooter)
     print("[✓] Scooter registered successfully.")
+    logger.log_activity(current_user["username"], "Registered new scooter",)
 
 def search_scooters():
     """Unified scooter search interface."""
@@ -219,6 +228,7 @@ def update_scooter_information(scooter_id, updates):
     conn.commit()
     conn.close()
     print("✅ Scooter updated.")
+    logger.log_activity(current_user["username"], "updated scooter information", details=f"Updated fields: {', '.join(updates.keys())}")
 
 def update_scooter_via_cli():
     """Update scooter information via CLI and call update_scooter_information() with proper role checks."""
@@ -314,6 +324,7 @@ def delete_scooter(scooter_id):
     actor_role = get_current_user()["role"]
     if actor_role not in ["System Administrator", "Super Administrator"]:
         print("❌ Access denied: only System or Super Admin may delete scooters.")
+        logger.log_activity(current_user["username"], "Tried to delete scooter without permission", is_suspicious=True)
         return
 
     conn = sqlite3.connect(DB_FILE)

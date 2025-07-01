@@ -3,7 +3,7 @@ import sqlite3
 import string
 import os, sys
 from Data.crypto import encrypt
-from session import get_current_user
+
 from Data.user_db import insert_user
 from Data.input_validation import validate_username, validate_password
 from session import get_current_user
@@ -11,6 +11,11 @@ from config import DB_FILE
 import bcrypt
 from datetime import datetime
     
+from Data.logging_util import SystemLogger
+logger = SystemLogger()
+from session import get_current_user
+current_user = get_current_user()
+
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
@@ -57,6 +62,7 @@ def register_user_interactively():
     success, message = insert_user(username, password, role, first, last)
     if success:
         print(f"✅ {role} account created.")
+        logger.log_activity(current_user["username"], f"Created new {role} account")
         from Main.menu import main_menu
         main_menu()
     else:
@@ -113,6 +119,8 @@ def update_current_user_profile():
     conn.close()
     
     print("✅ Profile updated successfully.")
+    logger.log_activity(current_user["username"], "updated profile",
+                        details=f"Updated fields: first_name, last_name, email")
     return True
 
 def delete_current_user():
@@ -133,10 +141,14 @@ def delete_current_user():
         conn.commit()
         print("✅ Account deleted successfully.")
         print("🔒 You have been logged out.")
+        logger.log_activity(current_user["username"], "Deteted account",
+                           details="User deleted their own account")
         return False
     except Exception as e:
         conn.rollback()
         print(f"❌ Error deleting account: {str(e)}")
+        logger.log_activity(current_user["username"], "Error deleting account",
+                            details=str(e), is_suspicious=True)
         return False
     finally:
         conn.close()
@@ -150,11 +162,15 @@ def update_user():
 
     if not is_admin_user():
         print("❌ You do not have permission to update users.")
+        logger.log_activity(current_user["username"], "Tried to update user without permission",
+                            is_suspicious=True)
         return
 
     user_id_input = input("Enter the user ID to update: ").strip()
     if not user_id_input.isdigit():
         print("❌ Invalid user ID format.")
+        logger.log_activity(current_user["username"], "Tried to update user with invalid ID format",
+                            is_suspicious=True)
         return
     user_id = int(user_id_input)
 
@@ -171,6 +187,8 @@ def update_user():
     if actor_role == "System Administrator":
         if target_role == "System Administrator" and user_id != current_user_id:
             print("❌ You cannot modify other System Administrators.")
+            logger.log_activity(current_user["username"], "Tried to update System Administrator user",
+                                is_suspicious=True)
             return
 
     print("\nWhat would you like to do?")
@@ -192,6 +210,7 @@ def update_user():
         field_choice = input("Enter field number: ").strip()
         if field_choice not in editable_fields:
             print("❌ Invalid choice.")
+
             return
 
         field = editable_fields[field_choice]
@@ -200,9 +219,13 @@ def update_user():
         if field == "role":
             if actor_role == "System Administrator" and new_value == "System Administrator" and user_id != current_user_id:
                 print("❌ You cannot assign or change System Administrator roles.")
+                logger.log_activity(current_user["username"], "Tried to update user with System Administrator role",
+                                    is_suspicious=True)
                 return
             if new_value not in ["System Administrator", "Service Engineer"]:
                 print("❌ Invalid role.")
+                logger.log_activity(current_user["username"], "Tried to update user with invalid role",
+                                    is_suspicious=True)
                 return
 
         cur.execute(f"UPDATE users SET {field} = ? WHERE user_id = ?", (new_value, user_id))
@@ -223,9 +246,13 @@ def update_user():
         cur.execute("UPDATE users SET password_hash = ? WHERE user_id = ?", (password_hash, user_id))
         conn.commit()
         print(f"✅ Password reset. New password is: {new_password}")
+        logger.log_activity(current_user["username"], "Reset user password",
+                            details=f"User ID: {user_id}, New Password: {new_password}")
 
     else:
         print("❌ Invalid selection.")
+        logger.log_activity(current_user["username"], "Tried to update user without permission",
+                            is_suspicious=True)
         return
 
     conn.close()
@@ -239,11 +266,15 @@ def delete_user():
 
     if not is_admin_user():
         print("❌ You do not have permission to delete users.")
+        logger.log_activity(current_user["username"], "tried to delete user without permission",
+                            is_suspicious=True)
         return
 
     user_id_input = input("Enter the user ID to delete: ").strip()
     if not user_id_input.isdigit():
         print("❌ Invalid user ID format.")
+        logger.log_activity(current_user["username"], "Tried to delete user with invalid ID format",
+                            is_suspicious=True)
         return
 
     user_id = int(user_id_input)
@@ -253,6 +284,8 @@ def delete_user():
         cur = conn.cursor()
     except sqlite3.Error as e:
         print(f"❌ Error connecting to database: {str(e)}")
+        logger.log_activity(current_user["username"], "Could not connect to database",
+                            is_suspicious=True)
         return
 
     try:
@@ -273,16 +306,24 @@ def delete_user():
                 cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
             else:
                 print("❌ System Admins can only delete Service Engineers.")
+                logger.log_activity(current_user["username"], "Tried to delete user without permission",
+                                    is_suspicious=True)
                 return
         else:
             print("❌ You do not have permission to delete this user.")
+            logger.log_activity(current_user["username"], "Tried to delete user without permission",
+                                is_suspicious=True)
             return
 
         conn.commit()
         print("✅ User deleted successfully.")
+        logger.log_activity(current_user["username"], "Deleted user",
+                            details=f"Deleted user ID: {user_id}, Role: {target_role}")
     except sqlite3.Error as e:
         conn.rollback()
         print(f"❌ Error deleting user: {str(e)}")
+        logger.log_activity(current_user["username"], "Error deleting user",
+                            details=str(e), is_suspicious=True)
     finally:
         try:
             conn.close()

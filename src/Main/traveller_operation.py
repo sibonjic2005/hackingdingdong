@@ -1,10 +1,14 @@
 import sqlite3
 from Data.crypto import decrypt, encrypt
-from session import get_current_user
+
 from Models.traveller import Traveller
 from Data.traveller_db import insert_traveller
 from Data.input_validation import *
 from config import DB_FILE
+from Data.logging_util import SystemLogger
+logger = SystemLogger()
+from session import get_current_user
+current_user = get_current_user()
 
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
@@ -164,6 +168,9 @@ def update_traveller_record():
     conn.close()
 
     print("✅ Traveller record updated successfully.")
+    logger.log_activity(current_user["username"], "Traveller record updated",
+                        details=f"Updated fields: {', '.join(update_data.keys())}")
+    
 
 def remove_traveller(traveller_id):
     """Delete a traveller by their unique ID."""
@@ -176,3 +183,5 @@ def remove_traveller(traveller_id):
     conn.commit()
     conn.close()
     print("🗑️ Traveller record deleted.")
+    
+    logger.log_activity(current_user["username"], "Traveller record deleted")
