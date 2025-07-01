@@ -7,6 +7,8 @@ from cryptography.fernet import Fernet
 from Data.input_validation import *
 from config import DB_FILE, LOG_FILE
 from session import set_current_user
+from Data.logging_util import SystemLogger
+logger = SystemLogger()
 
 SUPER_ADMIN_USERNAME = "super_admin"
 SUPER_ADMIN_PASSWORD = "Admin_123?"
@@ -122,8 +124,9 @@ class SecureAuth:
     def login(self, username, password):
         if username == SUPER_ADMIN_USERNAME and password == SUPER_ADMIN_PASSWORD:
             set_current_user(SUPER_ADMIN_USER)
-            self.log_activity(username, "LOGIN_SUCCESS")
+            logger.log_activity(username, "LOGIN_SUCCESS")
             return True, "✅ Super Administrator login successful"
+        logger.log_activity(username, "Super administrator login", "Successful login")
 
         conn = sqlite3.connect(self.db_file)
         cur = conn.cursor()
@@ -131,8 +134,11 @@ class SecureAuth:
             cur.execute("SELECT user_id, password_hash, role, first_name, last_name FROM users WHERE username = ?", (username,))
             result = cur.fetchone()
             if not result:
-                self.log_activity(username, "LOGIN_FAILED")
+                logger.log_activity(username, "LOGIN_FAILED")
                 return False, "❌ Gebruiker niet gevonden"
+            
+            
+            
 
             user_id, password_hash, role, first_name, last_name = result
             if self.verify_password(password, password_hash):
@@ -143,47 +149,53 @@ class SecureAuth:
                     "first_name": first_name,
                     "last_name": last_name
                 })
-                self.log_activity(username, "LOGIN_SUCCESS")
+                logger.log_activity(username, "LOGIN_SUCCESS")
                 return True, "✅ Inloggen geslaagd"
             else:
-                self.log_activity(username, "LOGIN_FAILED")
+                logger.log_activity(username, "LOGIN_FAILED")
                 return False, "❌ Verkeerd wachtwoord"
+            
         except Exception as e:
             return False, f"❌ Fout bij inloggen: {str(e)}"
         finally:
             conn.close()
 
-    def log_activity(self, username, action):
-        log_entry = {
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'username': username,
-            'action': action
-        }
+    # In secure_auth.py, modify the log_activity method to use SystemLogger consistently:
 
-        logs = []
-        try:
-            with open(self.log_file, 'rb') as f:
-                encrypted_data = f.read()
-            if encrypted_data:
-                decrypted_data = self._decrypt_log(encrypted_data)
-                logs = json.loads(decrypted_data)
-
-                now = datetime.now()
-                failed_count = sum(1 for log in logs[-10:] if
-                    log['username'] == username and
-                    log['action'] == 'LOGIN_FAILED' and
-                    (now - datetime.fromisoformat(log['timestamp'])).total_seconds() < 600)
-
-                if failed_count >= 5:
-                    self.log_activity(username, "SUSPICIOUS_ACTIVITY")
-        except Exception as e:
-            print(f"⚠️ Fout bij lezen van logbestand: {str(e)}")
-            logs = []
-
-        logs.append(log_entry)
-        encrypted_data = self._encrypt_log(json.dumps(logs))
-        with open(self.log_file, 'wb') as f:
-            f.write(encrypted_data)
+def log_activity(self, username, action, details=None):
+    """Unified logging using SystemLogger to database"""
+    try:
+        # Track failed login attempts for suspicious activity detection
+        if action == "LOGIN_FAILED":
+            # Get recent failed attempts
+            conn = sqlite3.connect(self.db_file)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT COUNT(*) FROM system_logs 
+                WHERE username = ? 
+                AND action = 'LOGIN_FAILED'
+                AND timestamp > datetime('now', '-10 minutes')
+            """, (username,))
+            failed_attempts = cur.fetchone()[0]
+            
+            if failed_attempts >= 3:
+                logger.log_activity(
+                    username, 
+                    "SUSPICIOUS_ACTIVITY", 
+                    f"Multiple failed logins ({failed_attempts+1})",
+                    is_suspicious=True
+                )
+        
+        # Log the actual action
+        logger.log_activity(
+            username,
+            action,
+            details,
+            is_suspicious=(action == "SUSPICIOUS_ACTIVITY")
+        )
+        
+    except Exception as e:
+        print(f"⚠️ Logging error: {str(e)}")
 
     def reset_service_engineer_password(self):
         print("\n🔧 Reset Service Engineer Password")
