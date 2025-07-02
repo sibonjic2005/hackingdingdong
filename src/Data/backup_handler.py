@@ -3,8 +3,7 @@ import sqlite3
 import zipfile
 from datetime import datetime
 from pathlib import Path
-
-
+from Authentication.restore_code_manager import *
 from .crypto import *  # Make sure you have decrypt function
 from session import get_current_user
 from Authentication.secure_auth import SecureAuth
@@ -14,7 +13,9 @@ logger = SystemLogger()
 
 DB_PATH = "data/urban_mobility.db"
 BACKUP_DIR = "data/backups"
-Path(BACKUP_DIR).mkdir(parents=True, exist_ok=True)  # Create dir at module load
+TEMP_DIR = "data/temp_restore"
+Path(BACKUP_DIR).mkdir(parents=True, exist_ok=True)
+Path(TEMP_DIR).mkdir(parents=True, exist_ok=True)
 
 def create_system_backup():
     """Create an encrypted backup of the database"""
@@ -26,22 +27,25 @@ def create_system_backup():
         # 2. Create timestamped backup name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"backup_{timestamp}.zip"
-        temp_path = os.path.join(BACKUP_DIR, f"temp_{backup_name}")
+        temp_zip_path = os.path.join(TEMP_DIR, f"temp_{backup_name}")
         final_path = os.path.join(BACKUP_DIR, backup_name)
         
         # 3. Create the zip backup
-        with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             zipf.write(DB_PATH, os.path.basename(DB_PATH))
         
-        # 4. Encrypt the backup
-        encrypt_file(temp_path, final_path)
-        os.remove(temp_path)  # Clean up temporary file
+        # 4. Encrypt the zip file
+        if not encrypt_file(temp_zip_path, final_path):
+            raise Exception("Failed to encrypt backup file")
         
-        # 5. Verify the backup was created
+        # 5. Clean up temporary zip
+        os.remove(temp_zip_path)
+        
+        # 6. Verify the backup was created
         if not os.path.exists(final_path):
             raise Exception("Backup file was not created successfully")
         
-        # 6. Log the activity
+        # 7. Log the activity
         if (user := get_current_user()):
             logger.log_activity(user['username'], "BACKUP_CREATED", f"Backup: {backup_name}")
         
@@ -85,82 +89,74 @@ def list_available_backups():
             'error': str(e),
             'backups': []
         }
-    
-
 
 def restore_backup(backup_filename):
-    """Restore a backup with proper validation"""
+    """Restore a backup with proper decryption and validation"""
+    temp_files = {
+        'decrypted': os.path.join(TEMP_DIR, f"decrypted_{backup_filename}"),
+        'db_old': DB_PATH + '.old',
+        'db_restore': os.path.join(TEMP_DIR, 'temp_restore.db')
+    }
+    
     try:
-        # 1. Validate input
-        if not backup_filename.endswith('.zip'):
-            backup_filename += '.zip'
-            
+        # 1. Construct full backup path
         backup_path = os.path.join(BACKUP_DIR, backup_filename)
         if not os.path.exists(backup_path):
             return {'success': False, 'error': 'Backup file not found'}
         
-        # 2. Verify the backup file is valid before proceeding
+        # 2. First decrypt the backup to a temporary file
+        decrypted_path = decrypt_file(backup_path, temp_files['decrypted'])
+        if not decrypted_path:
+            return {'success': False, 'error': 'Failed to decrypt backup'}
+        
+        # 3. Verify the zip file
         try:
-            with zipfile.ZipFile(backup_path, 'r') as test_zip:
-                if test_zip.testzip() is not None:
-                    return {'success': False, 'error': 'Corrupted backup file'}
-        except zipfile.BadZipFile:
-            return {'success': False, 'error': 'Invalid backup file format'}
-        
-        # 3. Create temporary restore path
-        restore_path = DB_PATH + '.restore'
-        temp_db_path = os.path.join(os.path.dirname(restore_path), 'temp_restore.db')
-        
-        # Clean up any previous temporary files
-        for temp_file in [restore_path, temp_db_path]:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-        
-        # 4. Extract the database file from backup
-        try:
-            with zipfile.ZipFile(backup_path, 'r') as zipf:
-                # Find the database file in the zip (in case there are multiple files)
+            with zipfile.ZipFile(decrypted_path, 'r') as zipf:
+                if zipf.testzip() is not None:
+                    raise ValueError("Corrupted backup file")
+                
+                # 4. Find the database file in the zip
                 db_files = [f for f in zipf.namelist() if f.endswith('.db')]
                 if not db_files:
-                    return {'success': False, 'error': 'No database file found in backup'}
+                    raise ValueError("No database file found in backup")
                 
-                # Extract the first database file found
-                zipf.extract(db_files[0], os.path.dirname(temp_db_path))
-                extracted_path = os.path.join(os.path.dirname(temp_db_path), db_files[0])
+                # 5. Extract the database file
+                zipf.extract(db_files[0], TEMP_DIR)
+                extracted_path = os.path.join(TEMP_DIR, db_files[0])
                 
-                # Verify the extracted database is valid
+                # 6. Verify the extracted database
                 try:
                     conn = sqlite3.connect(extracted_path)
                     conn.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1;")
                     conn.close()
-                except sqlite3.Error:
-                    return {'success': False, 'error': 'Invalid database in backup'}
+                except sqlite3.Error as e:
+                    raise ValueError(f"Invalid database in backup: {str(e)}")
                 
-                os.rename(extracted_path, temp_db_path)
+                os.rename(extracted_path, temp_files['db_restore'])
         except Exception as e:
-            return {'success': False, 'error': f'Extraction failed: {str(e)}'}
+            return {'success': False, 'error': str(e)}
         
-        # 5. Create backup of current database
+        # 7. Create backup of current database
         if os.path.exists(DB_PATH):
             try:
-                os.rename(DB_PATH, DB_PATH + '.old')
+                os.rename(DB_PATH, temp_files['db_old'])
             except Exception as e:
                 return {'success': False, 'error': f'Could not backup current DB: {str(e)}'}
         
-        # 6. Perform the actual restore
+        # 8. Perform the actual restore
         try:
-            os.rename(temp_db_path, DB_PATH)
+            os.rename(temp_files['db_restore'], DB_PATH)
         except Exception as e:
             # Restore the original database if restore fails
-            if os.path.exists(DB_PATH + '.old'):
-                os.rename(DB_PATH + '.old', DB_PATH)
+            if os.path.exists(temp_files['db_old']):
+                os.rename(temp_files['db_old'], DB_PATH)
             return {'success': False, 'error': f'Restore failed: {str(e)}'}
         
-        # 7. Clean up old backup if restore succeeded
-        if os.path.exists(DB_PATH + '.old'):
-            os.remove(DB_PATH + '.old')
+        # 9. Clean up if restore succeeded
+        if os.path.exists(temp_files['db_old']):
+            os.remove(temp_files['db_old'])
         
-        # 8. Log the activity
+        # 10. Log the activity
         if (user := get_current_user()):
             logger.log_activity(user['username'], "BACKUP_RESTORED", f"From: {backup_filename}")
         
@@ -168,7 +164,7 @@ def restore_backup(backup_filename):
         
     except Exception as e:
         # Clean up any temporary files
-        for temp_file in [restore_path, temp_db_path]:
+        for temp_file in temp_files.values():
             if os.path.exists(temp_file):
                 try:
                     os.remove(temp_file)
@@ -180,3 +176,7 @@ def restore_backup(backup_filename):
             'success': False,
             'error': str(e)
         }
+    finally:
+        # Always clean up the decrypted file
+        if os.path.exists(temp_files['decrypted']):
+            os.remove(temp_files['decrypted'])

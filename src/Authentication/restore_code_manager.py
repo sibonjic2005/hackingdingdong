@@ -3,6 +3,13 @@ import sqlite3
 import secrets
 import hashlib
 from Data.backup_handler import list_available_backups
+import os
+from Data.crypto import *
+
+DB_PATH = "data/urban_mobility.db"
+BACKUP_DIR = "data/backups"
+TEMP_DIR = "data/temp_restore"
+
 
 class RestoreManager:
     def __init__(self, db_path='data/urban_mobility.db'):
@@ -47,9 +54,25 @@ class RestoreManager:
                 print("❌ Invalid or used restore code")
                 return False
 
-            # Perform restore
+            # NEW: Create temporary decrypted file path
+            temp_dir = "data/temp_restore"
+            os.makedirs(temp_dir, exist_ok=True)
+            decrypted_zip_path = os.path.join(temp_dir, f"decrypted_{backup_name}")
+            
+            # Decrypt the backup first
+            if not decrypt_file(os.path.join(BACKUP_DIR, backup_name), decrypted_zip_path):
+                print("❌ Failed to decrypt backup file")
+                return False
+            
+            # Perform restore with the decrypted file
             from Data.backup_handler import restore_backup
-            result = restore_backup(backup_name)
+            result = restore_backup(decrypted_zip_path)  # Pass the decrypted path
+            
+            # Clean up temp file
+            try:
+                os.remove(decrypted_zip_path)
+            except:
+                pass
             
             if result['success']:
                 self.cursor.execute('''
@@ -67,7 +90,6 @@ class RestoreManager:
         except Exception as e:
             print(f"❌ Error during restore: {str(e)}")
             return False
-
     def _initialize_tables(self):
         """Initialize restore_codes table if not exists"""
         self.cursor.execute('''
