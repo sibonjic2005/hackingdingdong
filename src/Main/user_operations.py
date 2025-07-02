@@ -245,7 +245,7 @@ def update_user():
 
             new_value = role_options[int(role_choice) - 1]
 
-            # Check if same role
+            
             cur.execute("SELECT role FROM users WHERE user_id = ?", (user_id,))
             current_role = cur.fetchone()[0]
             if current_role == new_value:

@@ -5,7 +5,7 @@ from Data.crypto import encrypt
 # In Data/logging_util.py
 import sqlite3
 from datetime import datetime
-from Data.crypto import encrypt, decrypt  # Make sure these exist
+from Data.crypto import encrypt, decrypt 
 
 class SystemLogger:
     def __init__(self):
@@ -17,7 +17,7 @@ class SystemLogger:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Create table if not exists
+        
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS system_logs (
                     log_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +29,7 @@ class SystemLogger:
                 )
             ''')
             
-            # Encrypt sensitive fields
+            
             enc_username = encrypt(username) if username else None
             enc_action = encrypt(action)
             enc_details = encrypt(details) if details else None

@@ -1,15 +1,15 @@
 import sqlite3
 from datetime import datetime
-from Data.crypto import decrypt  # Make sure this uses the correct key
+from Data.crypto import decrypt  
 
 def view_system_logs(limit=50, show_suspicious_only=False):
     """View system logs with proper decryption and formatting"""
     try:
-        # Connect to database
+       
         conn = sqlite3.connect("data/urban_mobility.db")
         cursor = conn.cursor()
         
-        # Build query
+        
         query = """
             SELECT 
                 log_id, 
@@ -28,7 +28,7 @@ def view_system_logs(limit=50, show_suspicious_only=False):
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
         
-        # Execute query
+        
         cursor.execute(query, params)
         logs = cursor.fetchall()
         
@@ -36,7 +36,7 @@ def view_system_logs(limit=50, show_suspicious_only=False):
             print("\nNo logs found in database")
             return
             
-        # Display header
+       
         print("\n=== SYSTEM LOGS ===")
         if show_suspicious_only:
             print("(Showing only suspicious activities)")
@@ -44,17 +44,17 @@ def view_system_logs(limit=50, show_suspicious_only=False):
         print(f"\n{'ID':<5} | {'Date':<10} | {'Time':<8} | {'User':<12} | {'Action':<20} | {'Details':<30} | {'Suspicious'}")
         print("-"*100)
         
-        # Process each log
+       
         for log in logs:
             log_id, timestamp, username, action, details, is_suspicious = log
             
             try:
-                # Decrypt fields (handle None values)
+                
                 decrypted_user = decrypt(username) if username else "SYSTEM"
                 decrypted_action = decrypt(action) if action else "UNKNOWN"
                 decrypted_details = decrypt(details) if details else ""
                 
-                # Format timestamp
+                
                 try:
                     date_part, time_part = timestamp.split(" ")
                     time_display = time_part[:8]
@@ -63,7 +63,7 @@ def view_system_logs(limit=50, show_suspicious_only=False):
                     date_display = "UNKNOWN"
                     time_display = "UNKNOWN"
                 
-                # Print log entry
+                
                 print(
                     f"{log_id:<5} | {date_display:<10} | {time_display:<8} | "
                     f"{decrypted_user[:12]:<12} | "
@@ -73,7 +73,7 @@ def view_system_logs(limit=50, show_suspicious_only=False):
                 )
                 
             except Exception as e:
-                # Fallback if decryption fails
+                
                 print(
                     f"{log_id:<5} | [DECRYPT FAILED] | "
                     f"{str(username)[:12]:<12} | "
@@ -83,7 +83,7 @@ def view_system_logs(limit=50, show_suspicious_only=False):
                 )
                 continue
                 
-        # Show stats if not filtered
+        
         if not show_suspicious_only:
             cursor.execute("SELECT COUNT(*) FROM system_logs WHERE is_suspicious = 1")
             suspicious_count = cursor.fetchone()[0]
