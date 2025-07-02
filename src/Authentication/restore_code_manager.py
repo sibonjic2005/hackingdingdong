@@ -1,101 +1,118 @@
+# In Authentication/restore_code_manager.py
 import sqlite3
 import secrets
-from datetime import datetime, timedelta
-from Authentication.secure_auth import SecureAuth
-from session import get_current_user
-import os
-from Data.log_viewer import view_system_logs
+import hashlib
+from Data.backup_handler import list_available_backups
 
-DB_PATH = "data/urban_mobility.db"
-CODE_EXPIRY_HOURS = 24
+class RestoreManager:
+    def __init__(self, db_path='data/urban_mobility.db'):
+        self.conn = sqlite3.connect(db_path)
+        self.cursor = self.conn.cursor()
+        self._initialize_tables()
 
-def generate_restore_code(backup_filename=None):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        if not backup_filename:
-            from Data.backup_handler import list_available_backups
-            backups = list_available_backups()
-            if not backups:
+    def _initialize_tables(self):
+        """Initialize restore_codes table if not exists"""
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS restore_codes (
+            code_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            backup_name TEXT NOT NULL,
+            system_admin_username TEXT NOT NULL,
+            restore_code_hash TEXT NOT NULL,
+            is_used INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        self.conn.commit()
+
+    def generate_restore_code(self):
+        """
+        Generate a one-time restore code (simplified version)
+        """
+        try:
+            # List available backups
+            backup_result = list_available_backups()
+            if not backup_result['success'] or not backup_result['backups']:
+                print("❌ No backups available")
                 return None
-            print("\nSelect a backup to generate code for:")
+            
+            backups = backup_result['backups']
+            print("\nAvailable backups:")
             for i, backup in enumerate(backups, 1):
-                print(f"{i}. {backup}")
-            choice = input("\nEnter backup number: ")
+                print(f"{i}. {backup['filename']}")
+            
+            # Get backup selection
             try:
-                backup_filename = backups[int(choice)-1]
+                choice = int(input("Select backup (number): ")) - 1
+                backup_name = backups[choice]['filename']
             except (ValueError, IndexError):
                 print("❌ Invalid selection")
                 return None
 
-        backup_path = f"data/backups/{backup_filename}"
-        if not os.path.exists(backup_path):
-            print(f"❌ Backup file not found: {backup_filename}")
-            return None
+            # Get admin username (just ask for input)
+            system_admin_username = input("Enter admin username to assign this code to: ").strip()
+            if not system_admin_username:
+                print("❌ Admin username required")
+                return None
 
-        current_user = get_current_user()
-        if not current_user or current_user['role'] != 'Super Administrator':
-            print("❌ Only Super Administrators can generate restore codes")
-            return None
+            # Generate and store code
+            plain_code = secrets.token_hex(8)
+            code_hash = hashlib.sha256(plain_code.encode()).hexdigest()
 
-        restore_code = secrets.token_hex(8)
-        expiry_time = (datetime.now() + timedelta(hours=CODE_EXPIRY_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
-
-        cursor.execute("""
+            self.cursor.execute('''
             INSERT INTO restore_codes 
-            (code, backup_file, created_by, created_at, expires_at, is_used)
-            VALUES (?, ?, ?, datetime('now'), ?, 0)
-        """, (restore_code, backup_filename, current_user['username'], expiry_time))
-        
-        conn.commit()
-        
-        log_activity(
-            current_user['username'],
-            "Generated restore code",
-            f"Backup: {backup_filename}"
-        )
-        
-        print(f"\n✅ Restore code generated successfully")
-        print(f"Code: {restore_code}")
-        print(f"Expires: {expiry_time}")
-        print(f"Backup: {backup_filename}")
-        
-        return restore_code
-        
-    except sqlite3.Error as e:
-        print(f"❌ Database error: {str(e)}")
-        return None
-    except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
-        return None
-    finally:
-        conn.close() if 'conn' in locals() else None
-
-def validate_restore_code(code):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT code_id, backup_file, expires_at 
-            FROM restore_codes 
-            WHERE code = ? 
-            AND is_used = 0
-            AND datetime(expires_at) > datetime('now')
-        """, (code,))
-        
-        result = cursor.fetchone()
-        if not result:
-            return None
+            (backup_name, system_admin_username, restore_code_hash)
+            VALUES (?, ?, ?)
+            ''', (backup_name, system_admin_username, code_hash))
+            self.conn.commit()
             
-        return {
-            'code_id': result[0],
-            'backup_file': result[1],
-            'expires_at': result[2]
-        }
-        
-    except sqlite3.Error:
-        return None
-    finally:
-        conn.close() if 'conn' in locals() else None
+            print(f"\n✅ Restore code generated successfully")
+            print(f"Code: {plain_code}")
+            print(f"For backup: {backup_name}")
+            print(f"Assigned to: {system_admin_username}")
+            
+            return plain_code
+        except sqlite3.Error as e:
+            print(f"❌ Database error: {str(e)}")
+            return None
+
+    def revoke_restore_code(self):
+        """Revoke a restore code (simplified version)"""
+        try:
+            # List active codes
+            self.cursor.execute('''
+            SELECT code_id, backup_name, system_admin_username, created_at 
+            FROM restore_codes WHERE is_used = 0
+            ''')
+            codes = self.cursor.fetchall()
+            
+            if not codes:
+                print("❌ No active restore codes available")
+                return False
+                
+            print("\nActive restore codes:")
+            for code in codes:
+                print(f"ID: {code[0]} | Backup: {code[1]} | Admin: {code[2]} | Created: {code[3]}")
+            
+            # Get code to revoke
+            try:
+                code_id = int(input("Enter code ID to revoke: "))
+            except ValueError:
+                print("❌ Invalid code ID")
+                return False
+
+            # Delete the code
+            self.cursor.execute('DELETE FROM restore_codes WHERE code_id = ?', (code_id,))
+            self.conn.commit()
+            
+            if self.cursor.rowcount > 0:
+                print("✅ Restore code revoked successfully")
+                return True
+            print("❌ No such restore code found")
+            return False
+        except sqlite3.Error as e:
+            print(f"❌ Database error: {str(e)}")
+            return False
+
+    def close(self):
+        """Close database connection"""
+        self.conn.close()

@@ -10,6 +10,8 @@ from Main.user_operations import *
 from Main.scooter_operations import *
 from Main.traveller_operation import *
 from Authentication.secure_auth import *
+from Authentication.restore_code_manager import *
+manager = RestoreManager()
 
 
 def main_menu():
@@ -215,8 +217,9 @@ def traveller_menu():
         print("🔍 Updating traveller...")
         update_traveller_record()
     elif choice == "3":
+        traveller_id = input("\nEnter Traveller ID to delete ").strip()
         print("🔍 Deleting traveller...")
-        remove_traveller()
+        remove_traveller(traveller_id)
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -263,22 +266,25 @@ def system_management_menu():
     choice = input("\nChoose an option: ").strip()
     if choice == "1":
         view_system_logs(49)
-        print("🛠 Logs view (TBD)")
     elif choice == "2":
-        # Create and encrypt backup
         if get_current_user()['role'] in ['Super Administrator', 'System Administrator']:
             backup_path = create_system_backup()
             if backup_path:
-                print(f"Backup successfully created at: {backup_path}")
+                print(f"✅ Backup successfully created at: {backup_path}")
         else:
             print("❌ Only administrators can create backups")
-        input("\nPress Enter to continue...")
     elif choice == "3":
-        generate_restore_code()
-        print("🛠 Generate restore code")
+        if get_current_user()['role'] == 'Super Administrator':
+            manager.generate_restore_code()  # Now works without arguments
+        else:
+            print("❌ Only Super Administrator can generate restore codes")
     elif choice == "4":
-        revoke_restore_code()
-        print("🛠 Revoke restore code")
+        if get_current_user()['role'] == 'Super Administrator':
+            manager.revoke_restore_code()  # Now works without arguments
+        else:
+            print("❌ Only Super Administrator can revoke restore codes")
     elif choice != "0":
-        print("Invalid choice")
+        print("❌ Invalid choice")
+    
+    input("\nPress Enter to continue...")
     return True
