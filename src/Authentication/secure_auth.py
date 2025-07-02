@@ -3,7 +3,7 @@ import bcrypt
 import os
 import json
 from datetime import datetime
-from cryptography.fernet import Fernet
+from Data.crypto import fernet
 from Data.input_validation import *
 from config import DB_FILE, LOG_FILE
 from session import set_current_user
@@ -61,7 +61,6 @@ class SecureAuth:
         self.log_file = LOG_FILE
         self._ensure_database()
         self._ensure_log_file()
-        self._load_key()
         self._create_admin_user_if_not_exists()
 
     def _ensure_database(self):
@@ -86,17 +85,6 @@ class SecureAuth:
             with open(self.log_file, 'wb') as f:
                 f.write(b'')
 
-    def _load_key(self):
-        key_file = 'encryption_key.key'
-        if not os.path.exists(key_file):
-            key = Fernet.generate_key()
-            with open(key_file, 'wb') as f:
-                f.write(key)
-        else:
-            with open(key_file, 'rb') as f:
-                key = f.read()
-        self.fernet = Fernet(key)
-
     def _create_admin_user_if_not_exists(self):
         conn = sqlite3.connect(self.db_file)
         cur = conn.cursor()
@@ -116,10 +104,10 @@ class SecureAuth:
         conn.close()
 
     def _encrypt_log(self, data):
-        return self.fernet.encrypt(data.encode())
+        return fernet.encrypt(data.encode())
 
     def _decrypt_log(self, data):
-        return self.fernet.decrypt(data).decode()
+        return fernet.decrypt(data).decode()
 
     def verify_password(self, password, hashed):
         return bcrypt.checkpw(password.encode(), hashed.encode())

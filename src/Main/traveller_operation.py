@@ -1,15 +1,15 @@
 import sqlite3
 from Data.crypto import decrypt, encrypt
-
+from session import get_current_user
 from Models.traveller import Traveller
 from Data.traveller_db import insert_traveller
 from Data.input_validation import *
 from config import DB_FILE
-from Data.logging_util import SystemLogger
-logger = SystemLogger()
-from session import get_current_user
-current_user = get_current_user()
 
+DUTCH_CITIES = [
+    "Amsterdam", "Rotterdam", "Utrecht", "Den Haag", "Eindhoven",
+    "Groningen", "Nijmegen", "Maastricht", "Tilburg", "Leiden"
+]
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
@@ -35,8 +35,18 @@ def create_traveller_from_input():
     while not validate_zip(zip_code):
         zip_code = input("Invalid ZIP. Try again: ")
 
-    city = input("City: ")
+    print("Choose a city from the list below:")
+    for idx, city in enumerate(DUTCH_CITIES, start=1):
+        print(f"{idx}. {city}")
+
+    city_choice = input("Enter number (1–10): ").strip()
+    while not city_choice.isdigit() or int(city_choice) not in range(1, 11):
+        city_choice = input("❌ Invalid. Choose a number from 1 to 10: ").strip()
+
+    city = DUTCH_CITIES[int(city_choice) - 1]
     email = input("Email: ")
+    while not validate_email(email):
+        email = input("Invalid email. Try again: ")
     mobile = input("Mobile (start with 06, 10 digits total): ")
     while not validate_mobile(mobile):
         mobile = input("Invalid mobile. Try again: ")
@@ -50,8 +60,6 @@ def create_traveller_from_input():
                           mobile, driving_license)
 
     insert_traveller(traveller)
-    logger.log_activity(current_user["username"], "New traveller registered",
-                        details=f"Traveller ID: {traveller.traveller_id}")
 
 def search_travellers():
     """Search for travellers using partial matches on specified field."""
@@ -95,87 +103,6 @@ def search_travellers():
 
     return decrypted
 
-def list_all_travellers():
-    """Display all travellers with decrypted sensitive data"""
-    if not is_admin_user():
-        print("❌ You do not have permission to perform this action.")
-        return []
-
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cur = conn.cursor()
-        
-        # Get all travellers
-        cur.execute("""
-            SELECT traveller_id, first_name, last_name, birthday, gender, 
-                   street_name, house_number, zip_code, city, email, mobile, driving_license
-            FROM travellers
-            ORDER BY last_name, first_name
-        """)
-        travellers = cur.fetchall()
-        
-        if not travellers:
-            print("🔍 No travellers found in the system.")
-            return []
-
-        print("\n=== ALL TRAVELLERS ===")
-        print(f"{'ID':<10} | {'Name':<20} | {'Email':<25} | {'Mobile':<15} | {'Address':<30}")
-        print("-" * 90)
-        
-        decrypted_travellers = []
-        for traveller in travellers:
-            # Initialize decrypted with None values
-            decrypted = [None] * len(traveller)
-            
-            # Copy non-sensitive fields
-            for i in range(len(traveller)):
-                if i not in [5, 7, 9, 10]:  # These are the encrypted fields
-                    decrypted[i] = traveller[i]
-            
-            # Decrypt sensitive fields with None checks
-            try:
-                decrypted[5] = decrypt(traveller[5]) if traveller[5] else None  # street_name
-                decrypted[7] = decrypt(traveller[7]) if traveller[7] else None  # zip_code
-                decrypted[9] = decrypt(traveller[9]) if traveller[9] else None  # email
-                decrypted[10] = decrypt(traveller[10]) if traveller[10] else None  # mobile
-            except Exception as e:
-                print(f"⚠ Decryption error for traveler {traveller[0]}: {str(e)}")
-                continue
-            
-            # Format address with None checks
-            address_parts = []
-            if decrypted[5]: address_parts.append(str(decrypted[5]))
-            if decrypted[6]: address_parts.append(str(decrypted[6]))
-            if decrypted[7] and decrypted[8]:
-                address_parts.append(f"{decrypted[7]} {decrypted[8]}")
-            address = ", ".join(address_parts) if address_parts else "N/A"
-            
-            # Safely format all fields with None checks
-            traveller_id = str(decrypted[0]) if decrypted[0] is not None else "N/A"
-            name = f"{decrypted[1] or ''} {decrypted[2] or ''}".strip() or "N/A"
-            email = str(decrypted[9]) if decrypted[9] is not None else "N/A"
-            mobile = str(decrypted[10]) if decrypted[10] is not None else "N/A"
-            
-            print(f"{traveller_id:<10} | {name:<20} | {email:<25} | {mobile:<15} | {address}")
-            
-            decrypted_travellers.append({
-                'id': decrypted[0],
-                'name': name,
-                'email': decrypted[9],
-                'mobile': decrypted[10],
-                'address': address
-            })
-
-        print(f"\nTotal travellers: {len(decrypted_travellers)}")
-        return decrypted_travellers
-
-    except sqlite3.Error as e:
-        print(f"❌ Database error: {str(e)}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
 def update_traveller_record():
     """Interactively update editable fields for a traveller."""
     if not is_admin_user():
@@ -186,7 +113,30 @@ def update_traveller_record():
     if not traveller_id or len(traveller_id) < 5:
         print("Invalid Traveller ID format.")
         return
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM travellers WHERE traveller_id = ?", (traveller_id,))
+    row = cur.fetchone()
+    conn.close()
 
+    if not row:
+        print("❌ Traveller not found.")
+        return
+
+    row = list(row)
+    row[5] = decrypt(row[5])  # street_name
+    row[7] = decrypt(row[7])  # zip_code
+    row[9] = decrypt(row[9])  # email
+    row[10] = decrypt(row[10])  # mobile
+
+    print("\nCurrent traveller information:")
+    print(f"Name: {row[1]} {row[2]}")
+    print(f"Birthday: {row[3]}")
+    print(f"Gender: {row[4]}")
+    print(f"Address: {row[5]} {row[6]}, {row[7]} {row[8]}")
+    print(f"Email: {row[9]}")
+    print(f"Mobile: {row[10]}")
+    
     editable_fields = {
         "1": "first_name",
         "2": "last_name",
@@ -251,15 +201,18 @@ def update_traveller_record():
     conn.close()
 
     print("✅ Traveller record updated successfully.")
-    logger.log_activity(current_user["username"], "Traveller record updated",
-                        details=f"Updated fields: {', '.join(update_data.keys())}")
-    
 
-def remove_traveller(traveller_id):
+def remove_traveller():
     """Delete a traveller by their unique ID."""
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
         return
+    
+    traveller_id = input("Enter Traveller ID to remove: ").strip()
+    if not traveller_id or len(traveller_id) < 5:
+        print("Invalid Traveller ID format.")
+        return
+    
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("DELETE FROM travellers WHERE traveller_id = ?", (traveller_id,))
@@ -267,5 +220,32 @@ def remove_traveller(traveller_id):
     conn.close()
     print("🗑️ Traveller record deleted.")
 
+def view_all_travellers():
+    if not is_admin_user():
+        print("❌ You do not have permission to perform this action.")
+        return
 
-    logger.log_activity(current_user["username"], "Traveller record deleted")
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute("SELECT * FROM travellers")
+    travellers = cur.fetchall()
+
+    if not travellers:
+        print("🚫 Geen travellers gevonden.")
+        return
+
+    for t in travellers:
+        print(f"""
+                ID: {t['traveller_id']}
+                Naam: {t['first_name']} {t['last_name']}
+                Geboortedatum: {t['birthday']}
+                Geslacht: {t['gender']}
+                Adres: {decrypt(t['street_name'])} {t['house_number']}, {decrypt(t['zip_code'])} {t['city']}
+                Email: {decrypt(t['email'])}
+                Mobiel: {decrypt(t['mobile'])}
+                Rijbewijs: {t['driving_license']}
+                Registratiedatum: {t['registration_date']}
+                """)
+    conn.close()

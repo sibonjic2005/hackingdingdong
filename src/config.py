@@ -1,11 +1,9 @@
+# src/config.py
 import os
-import sqlite3
 
-DB_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'urban_mobility.db')
+# Database configuration
+DB_FILE = os.path.join('data', 'urban_mobility.db')  # Path to your SQLite database
+LOG_FILE = os.path.join('data', 'activity.log')     # Path to your log file
 
-sqlite3.connect(DB_FILE).execute('PRAGMA journal_mode=WAL')
-
-LOG_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'activity.log')
-
-data_dir = os.path.dirname(DB_FILE)
-os.makedirs(data_dir, exist_ok=True)
+# Encryption settings
+ENCRYPTION_KEY_FILE = os.path.join('data', 'encryption_key.key')    

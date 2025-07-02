@@ -33,7 +33,7 @@ def insert_user(username, password, role, first_name, last_name):
         )
     ''')
 
-    enc_username = encrypt(username)
+
     hashed_pw = hash_password(password)
     reg_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -41,7 +41,7 @@ def insert_user(username, password, role, first_name, last_name):
         cur.execute('''
             INSERT INTO users (username, password_hash, role, first_name, last_name, registration_date)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (enc_username, hashed_pw, role, first_name, last_name, reg_date))
+        ''', (username, hashed_pw, role, first_name, last_name, reg_date))
         conn.commit()
         print(f"[✓] {role} account created successfully.")
         return True, f"{role} account created successfully."
@@ -53,3 +53,19 @@ def insert_user(username, password, role, first_name, last_name):
         return False, f"Error: {str(e)}"
     finally:
         conn.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 6:
+        print("Usage: python user_db.py <username> <password> <role> <first_name> <last_name>")
+        sys.exit(1)
+
+    username = sys.argv[1]
+    password = sys.argv[2]
+    role = sys.argv[3]
+    first_name = sys.argv[4]
+    last_name = sys.argv[5]
+
+    success, message = insert_user(username, password, role, first_name, last_name)
+    if not success:
+        print(f"Error: {message}")
+        sys.exit(1)

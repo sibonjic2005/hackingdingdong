@@ -2,20 +2,12 @@ import sqlite3
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
+from session import get_current_user
 from Models.scooter import Scooter
-from Data.scooter_db import insert_scooter
+from Data.scooter_db import *
 from Data.input_validation import *
 from Data.user_db import get_current_user
 from config import DB_FILE
-
-from Data.logging_util import SystemLogger
-logger = SystemLogger()
-from session import get_current_user
-current_user = get_current_user()
-
-
 
 ENGINEER_ALLOWED_FIELDS = {
     "state_of_charge",
@@ -28,6 +20,7 @@ ENGINEER_ALLOWED_FIELDS = {
     "last_maintenance_date"
 }
 
+
 def is_admin_user():
     return get_current_user()["role"] in ["System Administrator", "Super Administrator"]
 
@@ -35,7 +28,6 @@ def create_scooter_from_input():
     """Collect scooter details from user input and create a Scooter object."""
     if not is_admin_user():
         print("❌ You do not have permission to perform this action.")
-        logger.log_activity(current_user["username"], "tried to register scooter without permission", is_suspicious=True)
         return
     brand = input("Brand: ")
     model = input("Model: ")
@@ -79,21 +71,21 @@ def create_scooter_from_input():
         print("Invalid input.")
         return
 
-    try:
-        lat = float(input("Latitude (5 decimals): "))
-        while not validate_lat(lat):
-            lat = float(input("Out of bounds. Try again: "))
-    except:
-        print("Invalid input.")
-        return
+    while True:
+        lat_input = input("Latitude (minimal 5 decimals): ")
+        if validate_lat_lon(lat_input):
+            lat = float(lat_input)
+            break
+        else:
+            print("Invalid input. Try again.")
 
-    try:
-        lon = float(input("Longitude (5 decimals): "))
-        while not validate_long(lon):
-            lon = float(input("Out of bounds. Try again: "))
-    except:
-        print("Invalid input.")
-        return
+    while True:
+        lon_input = input("Longitude (minimal 5 decimals): ")
+        if validate_lat_lon(lon_input):
+            lon = float(lon_input)
+            break
+        else:
+            print("Invalid input. Try again.")
 
     try:
         out = int(input("Out of service (0 = No, 1 = Yes): "))
@@ -133,7 +125,6 @@ def create_scooter_from_input():
 
     insert_scooter(scooter)
     print("[✓] Scooter registered successfully.")
-    logger.log_activity(current_user["username"], "Registered new scooter",)
 
 def search_scooters():
     """Unified scooter search interface."""
@@ -228,7 +219,6 @@ def update_scooter_information(scooter_id, updates):
     conn.commit()
     conn.close()
     print("✅ Scooter updated.")
-    logger.log_activity(current_user["username"], "updated scooter information", details=f"Updated fields: {', '.join(updates.keys())}")
 
 def update_scooter_via_cli():
     """Update scooter information via CLI and call update_scooter_information() with proper role checks."""
@@ -324,7 +314,6 @@ def delete_scooter(scooter_id):
     actor_role = get_current_user()["role"]
     if actor_role not in ["System Administrator", "Super Administrator"]:
         print("❌ Access denied: only System or Super Admin may delete scooters.")
-        logger.log_activity(current_user["username"], "Tried to delete scooter without permission", is_suspicious=True)
         return
 
     conn = sqlite3.connect(DB_FILE)
@@ -333,7 +322,6 @@ def delete_scooter(scooter_id):
     conn.commit()
     conn.close()
     print("✅ Scooter deleted.")
-    logger.log_activity(current_user["username"], "Deleted scooter", details=f"Scooter ID: {scooter_id}")
 
 def view_scooter_details(scooter_id=None):
     """View detailed information about a scooter."""
@@ -368,3 +356,26 @@ def view_scooter_details(scooter_id=None):
         print(f"{label}: {value}")
     
     conn.close()
+
+def view_all_scooters():
+    scooters = get_all_scooters()
+    if not scooters:
+        print("No scooters found.")
+        return
+
+    print("=== All Scooters ===")
+    for s in scooters:
+        print(f"""
+                ID: {s['scooter_id']}
+                Merk: {s['brand']}
+                Model: {s['model']}
+                Serial #: {s['serial_number']}
+                Top Speed: {s['top_speed']} km/h
+                Battery: {s['battery_capacity']} mAh, SOC: {s['state_of_charge']}%
+                SOC target: {s['target_soc_min']}–{s['target_soc_max']}%
+                Locatie: {s['location_lat']}, {s['location_long']}
+                In service sinds: {s['in_service_date']}
+                Laatste onderhoud: {s['last_maintenance_date']}
+                Status: {"Out of service" if s['out_of_service'] else "In service"}
+                Mileage: {s['mileage']} km
+                """)

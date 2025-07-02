@@ -10,9 +10,6 @@ from Main.user_operations import *
 from Main.scooter_operations import *
 from Main.traveller_operation import *
 from Authentication.secure_auth import *
-from Authentication.restore_code_manager import *
-from Authentication.restore_code_revoker import *
-manager = RestoreManager()
 
 
 def main_menu():
@@ -85,6 +82,7 @@ def admin_management_menu():
     print("1. Create new administrator")
     print("2. Update administrator")
     print("3. Delete administrator")
+    print("4. View all administrators")
     print("\n0. Back")
     
     choice = input("\nChoose an option: ").strip()
@@ -97,6 +95,9 @@ def admin_management_menu():
     elif choice == "3":
         print("🔍 Deleting administrator...")
         return delete_admin_interactively()
+    elif choice == "4":
+        print("🔍 Viewing all administrators...")
+        return view_users_by_role()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -122,7 +123,7 @@ def service_engineer_management_menu():
         delete_user()
     elif choice == "4":
         print("🔍 Resetting Service Engineer password...")
-        reset_service_engineer_password()
+        update_admin_interactively()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -176,32 +177,11 @@ def service_engineer_account_menu():
     choice = input("\nChoose an option: ").strip()
     if choice == "1":
         print("🔍 Changing password...")
-        return reset_service_engineer_password()
+        return update_admin_interactively()
     elif choice != "0":
         print("Invalid choice")
     return True
 
-def service_engineer_menu():
-    """Menu for managing Service Engineers."""
-    print("\n=== Service Engineers ===")
-    print("1. Create new Service Engineer")
-    print("2. Update Service Engineer")
-    print("3. Delete Service Engineer")
-    print("\n0. Back")
-    
-    choice = input("\nChoose an option: ").strip()
-    if choice == "1":
-        print("🔍 Creating new Service Engineer...")
-        register_user_interactively()
-    elif choice == "2":
-        print("🔍 Updating Service Engineer...")
-        update_user()
-    elif choice == "3":
-        print("🔍 Deleting Service Engineer...")
-        delete_user()
-    elif choice != "0":
-        print("Invalid choice")
-    return True
 
 def traveller_menu():
     """Menu for managing Travellers."""
@@ -209,7 +189,7 @@ def traveller_menu():
     print("1. Create new traveller")
     print("2. Update traveller")
     print("3. Delete traveller")
-    print("4. Print travellers")
+    print("4. View all travellers")
     print("\n0. Back")
     
     choice = input("\nChoose an option: ").strip()
@@ -219,12 +199,12 @@ def traveller_menu():
         print("🔍 Updating traveller...")
         update_traveller_record()
     elif choice == "3":
-        traveller_id = input("\nEnter Traveller ID to delete ").strip()
         print("🔍 Deleting traveller...")
-        remove_traveller(traveller_id)
+        remove_traveller()
     elif choice == "4":
-        list_all_travellers()
-
+        print("🔍 Viewing all travellers...")
+        print("=== All Travellers ===")
+        view_all_travellers()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -236,6 +216,7 @@ def scooter_menu():
     print("2. Create new scooter")
     print("3. Update scooter")
     print("4. Delete scooter")
+    print("5. View all scooters")
     print("\n0. Back")
     
     choice = input("\nChoose an option: ").strip()
@@ -255,6 +236,9 @@ def scooter_menu():
             delete_scooter(scooter_id)
         else:
             print("❌ No scooter ID provided.")
+    elif choice == "5":
+        print("🔍 Viewing all scooters...")
+        view_all_scooters()
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -266,36 +250,27 @@ def system_management_menu():
     print("2. Create backup")
     print("3. Generate restore code")
     print("4. Revoke restore code")
-    print("5. Perform restore")
     print("\n0. Back")
     
     choice = input("\nChoose an option: ").strip()
     if choice == "1":
         view_system_logs(49)
+        print("🛠 Logs view (TBD)")
     elif choice == "2":
+        # Create and encrypt backup
         if get_current_user()['role'] in ['Super Administrator', 'System Administrator']:
             backup_path = create_system_backup()
             if backup_path:
-                print(f"✅ Backup successfully created at: {backup_path}")
+                print(f"Backup successfully created at: {backup_path}")
         else:
             print("❌ Only administrators can create backups")
+        input("\nPress Enter to continue...")
     elif choice == "3":
-        if get_current_user()['role'] == 'Super Administrator':
-            manager.generate_restore_code()  # Now works without arguments
-        else:
-            print("❌ Only Super Administrator can generate restore codes")
+        generate_restore_code()
+        print("🛠 Generate restore code")
     elif choice == "4":
-        if get_current_user()['role'] == 'Super Administrator':
-            manager.revoke_restore_code()  # Now works without arguments
-        else:
-            print("❌ Only Super Administrator can revoke restore codes")
-    elif choice == "5":
-        if get_current_user()['role'] == 'Super Administrator':
-            manager.perform_restore()
-        else:
-            print("❌ Only Super Administrator can perform restores")
+        revoke_restore_code()
+        print("🛠 Revoke restore code")
     elif choice != "0":
-        print("❌ Invalid choice")
-    
-    input("\nPress Enter to continue...")
+        print("Invalid choice")
     return True
