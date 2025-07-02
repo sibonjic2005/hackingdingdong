@@ -50,6 +50,8 @@ def create_traveller_from_input():
                           mobile, driving_license)
 
     insert_traveller(traveller)
+    logger.log_activity(current_user["username"], "New traveller registered",
+                        details=f"Traveller ID: {traveller.traveller_id}")
 
 def search_travellers():
     """Search for travellers using partial matches on specified field."""
@@ -183,5 +185,6 @@ def remove_traveller(traveller_id):
     conn.commit()
     conn.close()
     print("🗑️ Traveller record deleted.")
-    
+
+
     logger.log_activity(current_user["username"], "Traveller record deleted")

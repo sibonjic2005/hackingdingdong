@@ -1,16 +1,23 @@
 import sqlite3
 from datetime import datetime
-from Data.crypto import decrypt  # Your decryption module
+from Data.crypto import decrypt  # Make sure this uses the correct key
 
 def view_system_logs(limit=50, show_suspicious_only=False):
-    """Display system logs to admin users with proper decryption"""
+    """View system logs with proper decryption and formatting"""
     try:
+        # Connect to database
         conn = sqlite3.connect("data/urban_mobility.db")
         cursor = conn.cursor()
         
-        # Build query based on filters
+        # Build query
         query = """
-            SELECT log_id, timestamp, username, action, details, is_suspicious
+            SELECT 
+                log_id, 
+                timestamp, 
+                username, 
+                action, 
+                details, 
+                is_suspicious
             FROM system_logs
         """
         params = []
@@ -21,6 +28,7 @@ def view_system_logs(limit=50, show_suspicious_only=False):
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
         
+        # Execute query
         cursor.execute(query, params)
         logs = cursor.fetchall()
         
@@ -28,31 +36,51 @@ def view_system_logs(limit=50, show_suspicious_only=False):
             print("\nNo logs found in database")
             return
             
+        # Display header
         print("\n=== SYSTEM LOGS ===")
         if show_suspicious_only:
             print("(Showing only suspicious activities)")
             
-        print(f"\n{'No.':<5} | {'Date/Time':<20} | {'User':<12} | {'Action':<25} | {'Details':<40} | {'Suspicious'}")
-        print("-" * 120)
+        print(f"\n{'ID':<5} | {'Date':<10} | {'Time':<8} | {'User':<12} | {'Action':<20} | {'Details':<30} | {'Suspicious'}")
+        print("-"*100)
         
+        # Process each log
         for log in logs:
+            log_id, timestamp, username, action, details, is_suspicious = log
+            
             try:
-                # Decrypt sensitive fields
-                username = decrypt(log[2]) if log[2] else "SYSTEM"
-                action = decrypt(log[3]) if log[3] else "UNKNOWN ACTION"
-                details = decrypt(log[4]) if log[4] else ""
+                # Decrypt fields (handle None values)
+                decrypted_user = decrypt(username) if username else "SYSTEM"
+                decrypted_action = decrypt(action) if action else "UNKNOWN"
+                decrypted_details = decrypt(details) if details else ""
                 
                 # Format timestamp
-                log_time = datetime.strptime(log[1], "%Y-%m-%d %H:%M:%S")
-                formatted_time = log_time.strftime("%d-%m-%Y %H:%M")
+                try:
+                    date_part, time_part = timestamp.split(" ")
+                    time_display = time_part[:8]
+                    date_display = date_part
+                except:
+                    date_display = "UNKNOWN"
+                    time_display = "UNKNOWN"
                 
-                # Format suspicious flag
-                suspicious = "⚠️ YES" if log[5] else "NO"
-                
-                print(f"{log[0]:<5} | {formatted_time:<20} | {username:<12} | {action[:25]:<25} | {details[:40]:<40} | {suspicious}")
+                # Print log entry
+                print(
+                    f"{log_id:<5} | {date_display:<10} | {time_display:<8} | "
+                    f"{decrypted_user[:12]:<12} | "
+                    f"{decrypted_action[:20]:<20} | "
+                    f"{decrypted_details[:30]:<30} | "
+                    f"{'⚠️' if is_suspicious else ''}"
+                )
                 
             except Exception as e:
-                print(f"\nError decrypting log entry {log[0]}: {str(e)}")
+                # Fallback if decryption fails
+                print(
+                    f"{log_id:<5} | [DECRYPT FAILED] | "
+                    f"{str(username)[:12]:<12} | "
+                    f"{str(action)[:20]:<20} | "
+                    f"{str(details)[:30]:<30} | "
+                    f"{'⚠️' if is_suspicious else ''}"
+                )
                 continue
                 
         # Show stats if not filtered
@@ -71,4 +99,4 @@ def view_system_logs(limit=50, show_suspicious_only=False):
 
 # Example usage:
 # view_system_logs(20)  # Show last 20 logs
-# view_system_logs(show_suspicious_only=True)  # Show only suspicious activities
+# view_system_logs(show_suspicious_only=True)  # Show only suspicious logs

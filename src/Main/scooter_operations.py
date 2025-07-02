@@ -333,6 +333,7 @@ def delete_scooter(scooter_id):
     conn.commit()
     conn.close()
     print("✅ Scooter deleted.")
+    logger.log_activity(current_user["username"], "Deleted scooter", details=f"Scooter ID: {scooter_id}")
 
 def view_scooter_details(scooter_id=None):
     """View detailed information about a scooter."""
