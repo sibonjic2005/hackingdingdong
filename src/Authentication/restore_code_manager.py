@@ -104,7 +104,7 @@ class RestoreManager:
         ''')
         self.conn.commit()
 
-    def generate_restore_code(self):
+    def generate_restore_code():
         """
         Generate a one-time restore code (simplified version)
         """
