@@ -11,6 +11,7 @@ from Main.scooter_operations import *
 from Main.traveller_operation import *
 from Authentication.secure_auth import *
 from Authentication.restore_code_manager import *
+from Authentication.restore_code_revoker import *
 manager = RestoreManager()
 
 
@@ -208,6 +209,7 @@ def traveller_menu():
     print("1. Create new traveller")
     print("2. Update traveller")
     print("3. Delete traveller")
+    print("4. Print travellers")
     print("\n0. Back")
     
     choice = input("\nChoose an option: ").strip()
@@ -220,6 +222,9 @@ def traveller_menu():
         traveller_id = input("\nEnter Traveller ID to delete ").strip()
         print("🔍 Deleting traveller...")
         remove_traveller(traveller_id)
+    elif choice == "4":
+        list_all_travellers()
+
     elif choice != "0":
         print("Invalid choice")
     return True
@@ -261,6 +266,7 @@ def system_management_menu():
     print("2. Create backup")
     print("3. Generate restore code")
     print("4. Revoke restore code")
+    print("5. Perform restore")
     print("\n0. Back")
     
     choice = input("\nChoose an option: ").strip()
@@ -283,6 +289,11 @@ def system_management_menu():
             manager.revoke_restore_code()  # Now works without arguments
         else:
             print("❌ Only Super Administrator can revoke restore codes")
+    elif choice == "5":
+        if get_current_user()['role'] == 'Super Administrator':
+            manager.perform_restore()
+        else:
+            print("❌ Only Super Administrator can perform restores")
     elif choice != "0":
         print("❌ Invalid choice")
     

@@ -10,6 +10,64 @@ class RestoreManager:
         self.cursor = self.conn.cursor()
         self._initialize_tables()
 
+    def perform_restore(self):
+        try:
+            # List available backups
+            backups = list_available_backups()
+            if not backups['success'] or not backups['backups']:
+                print("❌ No backups available")
+                return False
+
+            print("\nAvailable backups:")
+            for i, backup in enumerate(backups['backups'], 1):
+                print(f"{i}. {backup['filename']}")
+
+            # Select backup
+            try:
+                choice = int(input("Select backup to restore (number): ")) - 1
+                backup_name = backups['backups'][choice]['filename']
+            except (ValueError, IndexError):
+                print("❌ Invalid selection")
+                return False
+
+            # Get restore code
+            restore_code = input("Enter restore code: ").strip()
+            if not restore_code:
+                print("❌ Restore code required")
+                return False
+
+            # Verify code
+            code_hash = hashlib.sha256(restore_code.encode()).hexdigest()
+            self.cursor.execute('''
+                SELECT 1 FROM restore_codes 
+                WHERE restore_code_hash = ? 
+                AND is_used = 0
+            ''', (code_hash,))
+            if not self.cursor.fetchone():
+                print("❌ Invalid or used restore code")
+                return False
+
+            # Perform restore
+            from Data.backup_handler import restore_backup
+            result = restore_backup(backup_name)
+            
+            if result['success']:
+                self.cursor.execute('''
+                    UPDATE restore_codes 
+                    SET is_used = 1 
+                    WHERE restore_code_hash = ?
+                ''', (code_hash,))
+                self.conn.commit()
+                print("✅ Database restored successfully")
+                return True
+            
+            print(f"❌ Restore failed: {result.get('error', 'Unknown error')}")
+            return False
+
+        except Exception as e:
+            print(f"❌ Error during restore: {str(e)}")
+            return False
+
     def _initialize_tables(self):
         """Initialize restore_codes table if not exists"""
         self.cursor.execute('''
@@ -74,6 +132,7 @@ class RestoreManager:
         except sqlite3.Error as e:
             print(f"❌ Database error: {str(e)}")
             return None
+    
 
     def revoke_restore_code(self):
         """Revoke a restore code (simplified version)"""
@@ -106,12 +165,16 @@ class RestoreManager:
             
             if self.cursor.rowcount > 0:
                 print("✅ Restore code revoked successfully")
+                
                 return True
             print("❌ No such restore code found")
             return False
         except sqlite3.Error as e:
             print(f"❌ Database error: {str(e)}")
             return False
+        
+        
+    
 
     def close(self):
         """Close database connection"""

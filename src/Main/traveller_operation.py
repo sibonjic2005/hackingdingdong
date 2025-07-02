@@ -95,6 +95,87 @@ def search_travellers():
 
     return decrypted
 
+def list_all_travellers():
+    """Display all travellers with decrypted sensitive data"""
+    if not is_admin_user():
+        print("❌ You do not have permission to perform this action.")
+        return []
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cur = conn.cursor()
+        
+        # Get all travellers
+        cur.execute("""
+            SELECT traveller_id, first_name, last_name, birthday, gender, 
+                   street_name, house_number, zip_code, city, email, mobile, driving_license
+            FROM travellers
+            ORDER BY last_name, first_name
+        """)
+        travellers = cur.fetchall()
+        
+        if not travellers:
+            print("🔍 No travellers found in the system.")
+            return []
+
+        print("\n=== ALL TRAVELLERS ===")
+        print(f"{'ID':<10} | {'Name':<20} | {'Email':<25} | {'Mobile':<15} | {'Address':<30}")
+        print("-" * 90)
+        
+        decrypted_travellers = []
+        for traveller in travellers:
+            # Initialize decrypted with None values
+            decrypted = [None] * len(traveller)
+            
+            # Copy non-sensitive fields
+            for i in range(len(traveller)):
+                if i not in [5, 7, 9, 10]:  # These are the encrypted fields
+                    decrypted[i] = traveller[i]
+            
+            # Decrypt sensitive fields with None checks
+            try:
+                decrypted[5] = decrypt(traveller[5]) if traveller[5] else None  # street_name
+                decrypted[7] = decrypt(traveller[7]) if traveller[7] else None  # zip_code
+                decrypted[9] = decrypt(traveller[9]) if traveller[9] else None  # email
+                decrypted[10] = decrypt(traveller[10]) if traveller[10] else None  # mobile
+            except Exception as e:
+                print(f"⚠ Decryption error for traveler {traveller[0]}: {str(e)}")
+                continue
+            
+            # Format address with None checks
+            address_parts = []
+            if decrypted[5]: address_parts.append(str(decrypted[5]))
+            if decrypted[6]: address_parts.append(str(decrypted[6]))
+            if decrypted[7] and decrypted[8]:
+                address_parts.append(f"{decrypted[7]} {decrypted[8]}")
+            address = ", ".join(address_parts) if address_parts else "N/A"
+            
+            # Safely format all fields with None checks
+            traveller_id = str(decrypted[0]) if decrypted[0] is not None else "N/A"
+            name = f"{decrypted[1] or ''} {decrypted[2] or ''}".strip() or "N/A"
+            email = str(decrypted[9]) if decrypted[9] is not None else "N/A"
+            mobile = str(decrypted[10]) if decrypted[10] is not None else "N/A"
+            
+            print(f"{traveller_id:<10} | {name:<20} | {email:<25} | {mobile:<15} | {address}")
+            
+            decrypted_travellers.append({
+                'id': decrypted[0],
+                'name': name,
+                'email': decrypted[9],
+                'mobile': decrypted[10],
+                'address': address
+            })
+
+        print(f"\nTotal travellers: {len(decrypted_travellers)}")
+        return decrypted_travellers
+
+    except sqlite3.Error as e:
+        print(f"❌ Database error: {str(e)}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def update_traveller_record():
     """Interactively update editable fields for a traveller."""
     if not is_admin_user():

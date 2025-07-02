@@ -85,6 +85,8 @@ def list_available_backups():
             'error': str(e),
             'backups': []
         }
+    
+
 
 def restore_backup(backup_filename):
     """Restore a backup with proper validation"""
@@ -97,34 +99,66 @@ def restore_backup(backup_filename):
         if not os.path.exists(backup_path):
             return {'success': False, 'error': 'Backup file not found'}
         
-        # 2. Create restore path
+        # 2. Verify the backup file is valid before proceeding
+        try:
+            with zipfile.ZipFile(backup_path, 'r') as test_zip:
+                if test_zip.testzip() is not None:
+                    return {'success': False, 'error': 'Corrupted backup file'}
+        except zipfile.BadZipFile:
+            return {'success': False, 'error': 'Invalid backup file format'}
+        
+        # 3. Create temporary restore path
         restore_path = DB_PATH + '.restore'
-        if os.path.exists(restore_path):
-            os.remove(restore_path)
+        temp_db_path = os.path.join(os.path.dirname(restore_path), 'temp_restore.db')
         
-        # 3. Decrypt backup (if encrypted)
-        # Note: Adjust based on your crypto implementation
-        if backup_path.endswith('.enc'):
-            decrypted_path = backup_path.replace('.enc', '')
-            decrypt(backup_path, decrypted_path)
-            backup_path = decrypted_path
+        # Clean up any previous temporary files
+        for temp_file in [restore_path, temp_db_path]:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
         
-        # 4. Verify the backup
-        if not zipfile.is_zipfile(backup_path):
-            raise ValueError("Invalid backup file format")
+        # 4. Extract the database file from backup
+        try:
+            with zipfile.ZipFile(backup_path, 'r') as zipf:
+                # Find the database file in the zip (in case there are multiple files)
+                db_files = [f for f in zipf.namelist() if f.endswith('.db')]
+                if not db_files:
+                    return {'success': False, 'error': 'No database file found in backup'}
+                
+                # Extract the first database file found
+                zipf.extract(db_files[0], os.path.dirname(temp_db_path))
+                extracted_path = os.path.join(os.path.dirname(temp_db_path), db_files[0])
+                
+                # Verify the extracted database is valid
+                try:
+                    conn = sqlite3.connect(extracted_path)
+                    conn.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1;")
+                    conn.close()
+                except sqlite3.Error:
+                    return {'success': False, 'error': 'Invalid database in backup'}
+                
+                os.rename(extracted_path, temp_db_path)
+        except Exception as e:
+            return {'success': False, 'error': f'Extraction failed: {str(e)}'}
         
-        # 5. Perform the restore
-        with zipfile.ZipFile(backup_path, 'r') as zipf:
-            zipf.extractall(os.path.dirname(restore_path))
-        
-        # 6. Replace current database
+        # 5. Create backup of current database
         if os.path.exists(DB_PATH):
-            os.replace(DB_PATH, DB_PATH + '.old')
-        os.rename(restore_path, DB_PATH)
+            try:
+                os.rename(DB_PATH, DB_PATH + '.old')
+            except Exception as e:
+                return {'success': False, 'error': f'Could not backup current DB: {str(e)}'}
         
-        # 7. Clean up
-        if backup_path.endswith('.temp'):
-            os.remove(backup_path)
+        # 6. Perform the actual restore
+        try:
+            os.rename(temp_db_path, DB_PATH)
+        except Exception as e:
+            # Restore the original database if restore fails
+            if os.path.exists(DB_PATH + '.old'):
+                os.rename(DB_PATH + '.old', DB_PATH)
+            return {'success': False, 'error': f'Restore failed: {str(e)}'}
+        
+        # 7. Clean up old backup if restore succeeded
+        if os.path.exists(DB_PATH + '.old'):
+            os.remove(DB_PATH + '.old')
         
         # 8. Log the activity
         if (user := get_current_user()):
@@ -133,7 +167,15 @@ def restore_backup(backup_filename):
         return {'success': True}
         
     except Exception as e:
-        logger.log_error("RESTORE_FAILED", str(e))
+        # Clean up any temporary files
+        for temp_file in [restore_path, temp_db_path]:
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
+        
+        logger.log_activity("RESTORE_FAILED", str(e))
         return {
             'success': False,
             'error': str(e)
